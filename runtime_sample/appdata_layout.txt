@@ -1,0 +1,5 @@
+DesktopSmartOrganizer/
+  config.json
+  logs/
+  tasks/
+  invoice_metadata/
