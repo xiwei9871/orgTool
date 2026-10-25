@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from PySide6.QtWidgets import (
     QHBoxLayout,
+    QLabel,
     QPushButton,
     QTableView,
     QVBoxLayout,
@@ -29,20 +30,30 @@ class InvoicePage(QWidget):
         self.preview_button = QPushButton("生成处理预览")
         self.execute_button = QPushButton("执行归档")
         self.duplicate_button = QPushButton("查看重复项")
+        self.open_pending_button = QPushButton("打开待处理目录")
+        self.open_review_button = QPushButton("打开待审核目录")
+        self.open_archive_button = QPushButton("打开归档目录")
         self.open_month_button = QPushButton("打开月份目录")
         self.open_report_button = QPushButton("打开报表目录")
         self.open_root_button = QPushButton("打开发票目录")
         self.open_logs_button = QPushButton("打开日志目录")
+        self.dir_stats_label = QLabel("目录统计: -")
 
         button_row = QHBoxLayout()
         button_row.addWidget(self.scan_button)
         button_row.addWidget(self.preview_button)
         button_row.addWidget(self.execute_button)
         button_row.addWidget(self.duplicate_button)
-        button_row.addWidget(self.open_month_button)
-        button_row.addWidget(self.open_report_button)
-        button_row.addWidget(self.open_root_button)
-        button_row.addWidget(self.open_logs_button)
+
+        folder_row = QHBoxLayout()
+        folder_row.addWidget(self.open_pending_button)
+        folder_row.addWidget(self.open_review_button)
+        folder_row.addWidget(self.open_archive_button)
+        folder_row.addWidget(self.open_month_button)
+        folder_row.addWidget(self.open_report_button)
+        folder_row.addWidget(self.open_root_button)
+        folder_row.addWidget(self.open_logs_button)
+        folder_row.addStretch(1)
 
         self.table_model = InvoiceTableModel()
         self.table_view = QTableView()
@@ -50,7 +61,9 @@ class InvoicePage(QWidget):
 
         layout = QVBoxLayout(self)
         layout.addWidget(self.invoice_root_path)
+        layout.addWidget(self.dir_stats_label)
         layout.addWidget(self.mail_panel)
         layout.addLayout(button_row)
+        layout.addLayout(folder_row)
         layout.addWidget(self.summary_cards)
         layout.addWidget(self.table_view)
