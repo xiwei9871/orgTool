@@ -23,6 +23,17 @@ class InvoiceRecord:
     doc_type: str = ""
     field_sources: dict = field(default_factory=dict)
     review_fields: list[str] = field(default_factory=list)
+    # Archival / review workflow state (S3.3).  Defaults keep old
+    # invoice_index.json rows loadable — that is the idempotent
+    # migration path for these new fields.
+    archive_status: str = ""  # auto_archived | manually_archived | deferred
+    review_status: str = ""  # pending_review | confirmed | ""
+    expense_category: str = ""
+    reimburser: str = ""
+    expense_location: str = ""
+    reimburse_state: str = "undecided"  # undecided | reimbursed | excluded
+    manual_overrides: dict = field(default_factory=dict)
+    archived_at: str = ""
     recognition_status: str = "pending"
     date_source: str = ""
     notes: list[str] = field(default_factory=list)
@@ -45,6 +56,18 @@ class DuplicateCheckResult:
     status: str
     reason: str
     matched_record_path: str = ""
+
+
+@dataclass(slots=True)
+class ArchiveCandidate:
+    """One pending file evaluated for auto-archive (S3.3 dry-run/execute)."""
+
+    record: InvoiceRecord
+    source_path: str
+    duplicate_status: str
+    duplicate_reason: str
+    eligible: bool
+    reasons: list[str] = field(default_factory=list)
 
 
 @dataclass(slots=True)

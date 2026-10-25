@@ -1,0 +1,37 @@
+{
+  "date": "2026-10-25",
+  "branch": "feature/s3-3-auto-archive",
+  "suite": {"total": 228, "passed": 227, "skipped": 1},
+  "new_tests": {
+    "tests/invoice/test_auto_archive.py": 15
+  },
+  "dry_run_real_pending": {
+    "total_files": 48,
+    "eligible": 28,
+    "review_queue": 20,
+    "review_reasons": {"not_e_invoice": 20},
+    "review_doc_types": {"hotel_folio": 9, "travel_voucher": 8, "unknown": 2, "needs_ocr": 1},
+    "files_moved": 0
+  },
+  "ledger_real_check": {
+    "flow_rows": 28,
+    "flow_total": 12947.02,
+    "matches_real_sum": true,
+    "remark_column_blank": true,
+    "month": "202610",
+    "category_distribution": {"差旅费": 10, "业务招待费": 5, "待确认": 13}
+  },
+  "eligibility_hard_conditions": [
+    "not_e_invoice", "not_complete", "missing_number", "weak_number",
+    "bad_number_format", "missing_date", "weak_date", "bad_date_format",
+    "missing_amount", "bad_amount", "weak_amount", "tax_missing",
+    "buyer_missing", "seller_missing", "duplicate_conflict",
+    "file_hash_missing", "file_unreadable", "review_flags"
+  ],
+  "gui": {
+    "window": "1280x800",
+    "invoice_rows_visible": 15,
+    "mail_panel": "single-line status + MailManagerDialog"
+  },
+  "notes": "complete 单独不构成自动归档许可；fallback 证据字段永不放行；台账导出为纯函数重生成"
+}

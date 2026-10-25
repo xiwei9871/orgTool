@@ -340,6 +340,9 @@ def test_failed_background_task_shows_warning(tmp_path: Path, monkeypatch) -> No
     )
 
     window = MainWindow()
+    # Hidden windows no longer open modal warnings (stale queued
+    # failures must not deadlock); show it so the dialog path is used.
+    window.show()
 
     def work(cancel_event: threading.Event) -> None:
         raise OSError("disk exploded")
