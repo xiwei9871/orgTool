@@ -18,6 +18,7 @@ class InvoiceRecord:
     amount: float | None = None
     seller: str = ""
     source_type: str = "pdf"
+    doc_type: str = ""
     recognition_status: str = "pending"
     date_source: str = ""
     notes: list[str] = field(default_factory=list)

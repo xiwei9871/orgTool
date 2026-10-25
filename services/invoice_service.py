@@ -13,6 +13,7 @@ from core.errors import raise_if_cancelled
 from core.task_store import TaskStore
 from invoice.archive_planner import InvoiceArchivePlanner
 from invoice.deduplicator import InvoiceDeduplicator
+from invoice.doc_classifier import DOC_E_INVOICE, classify_pdf_text
 from invoice.excel_exporter import InvoiceExcelExporter
 from invoice.invoice_service_helpers import modified_time_for
 from invoice.metadata_store import InvoiceMetadataStore
@@ -80,6 +81,12 @@ class InvoiceService:
                 file_hash=compute_file_hash(path, config.hash_algorithm),
                 modified_at=modified_time_for(path),
             )
+            # Document gate: only real e-invoices may proceed into the
+            # formal archive pipeline. Statements, vouchers, itineraries
+            # and image-only PDFs stay pending for manual review — the old
+            # parser alone cannot be trusted to reject them (baseline:
+            # 16/20 non-invoices were parsed "complete").
+            record.doc_type = classify_pdf_text(extraction.text)
             self._attach_mail_source(record, path)
             duplicate_result = self.deduplicator.check(record)
             plan = self.archive_planner.plan(record, duplicate_result.status, config)
@@ -88,7 +95,11 @@ class InvoiceService:
             skip_reason = ""
             target_path = plan.target_path
 
-            if duplicate_result.status == "待确认":
+            if record.doc_type != DOC_E_INVOICE:
+                is_skipped = True
+                skip_reason = f"non_invoice:{record.doc_type}"
+                target_path = ""
+            elif duplicate_result.status == "待确认":
                 is_skipped = True
                 skip_reason = "review_required"
                 target_path = ""
@@ -110,7 +121,11 @@ class InvoiceService:
                     report_path=plan.report_path,
                     month_key=plan.month_key,
                     status=record.recognition_status,
-                    remark=duplicate_result.reason,
+                    remark=(
+                        f"文档类型: {record.doc_type}"
+                        if record.doc_type != DOC_E_INVOICE
+                        else duplicate_result.reason
+                    ),
                     is_skipped=is_skipped,
                     skip_reason=skip_reason,
                     record=record,

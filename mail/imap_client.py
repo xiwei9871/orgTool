@@ -231,10 +231,13 @@ class ImapClient:
         since: date | None = None,
         before: date | None = None,
         uid_min: int | None = None,
+        unseen: bool = False,
     ) -> list[int]:
-        """Search for message UIDs matching date/UID criteria."""
+        """Search for message UIDs matching date/UID/read-state criteria."""
         conn = self._require_conn()
         criteria: list[str] = []
+        if unseen:
+            criteria += ["UNSEEN"]
         if uid_min is not None:
             criteria += ["UID", f"{uid_min}:*"]
         if since is not None:
