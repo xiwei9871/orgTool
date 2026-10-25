@@ -3,9 +3,11 @@
 from __future__ import annotations
 
 import shutil
+import threading
 from datetime import datetime
 from pathlib import Path
 
+from core.errors import raise_if_cancelled
 from core.task_store import TaskStore
 from models.task import TaskItemRecord, TaskRecord
 
@@ -16,7 +18,9 @@ class UndoManager:
     def __init__(self, task_store: TaskStore) -> None:
         self.task_store = task_store
 
-    def undo_latest_desktop_task(self) -> TaskRecord:
+    def undo_latest_desktop_task(
+        self, cancel_event: threading.Event | None = None
+    ) -> TaskRecord:
         """Undo the latest successful desktop organization task."""
         latest_task = self.task_store.get_latest("desktop_organize")
         created_at = datetime.now().isoformat(timespec="seconds")
@@ -39,6 +43,7 @@ class UndoManager:
         error_count = 0
 
         for item in reversed(latest_task.items):
+            raise_if_cancelled(cancel_event)
             if item.operation != "move" or item.status != "success":
                 continue
 

@@ -3,34 +3,14 @@
 from __future__ import annotations
 
 import ctypes
-from pathlib import Path
 from uuid import UUID
 
 
-def resolve_desktop_directory() -> Path:
-    """Resolve the current user's desktop directory on Windows.
+def get_known_folder_path(folder_id: str) -> str | None:
+    """Return a Windows known-folder path if available.
 
-    The Windows Known Folder API is tried first. If that fails, fall back to
-    common desktop-like locations. The return value may still be non-existent,
-    and callers should validate it before use.
+    Returns ``None`` on non-Windows platforms or when the API call fails.
     """
-    known_folder = _get_known_folder_path("{B4BFCC3A-DB2C-424C-B029-7FE99A87C641}")
-    if known_folder:
-        return Path(known_folder)
-
-    candidates = [
-        Path.home() / "Desktop",
-        Path.home() / "OneDrive" / "Desktop",
-    ]
-    for candidate in candidates:
-        if candidate.exists():
-            return candidate
-
-    return candidates[0]
-
-
-def _get_known_folder_path(folder_id: str) -> str | None:
-    """Return a Windows known-folder path if available."""
     try:
         shell32 = ctypes.windll.shell32
         ole32 = ctypes.windll.ole32

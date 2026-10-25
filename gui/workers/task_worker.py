@@ -11,7 +11,7 @@ class WorkerSignals(QObject):
     """Signals for a background worker."""
 
     finished = Signal(object)
-    failed = Signal(str)
+    failed = Signal(object)
 
 
 class TaskWorker(QRunnable):
@@ -28,6 +28,6 @@ class TaskWorker(QRunnable):
         try:
             result = self.fn(*self.args, **self.kwargs)
         except Exception as exc:  # noqa: BLE001
-            self.signals.failed.emit(str(exc))
+            self.signals.failed.emit(exc)
             return
         self.signals.finished.emit(result)

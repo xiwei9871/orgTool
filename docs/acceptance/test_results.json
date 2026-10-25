@@ -1,0 +1,36 @@
+{
+  "generated_at": "2026-10-25",
+  "baseline_commit": "4c1def4",
+  "environments": [
+    {
+      "os": "macOS",
+      "version": "Darwin 25.6.0 (arm64)",
+      "python": "3.14.7",
+      "command": ".venv/bin/python -m pytest -q",
+      "result": {
+        "passed": 93,
+        "failed": 0,
+        "skipped": 1,
+        "not_run": 0
+      },
+      "gui_launch": "PASS",
+      "build_artifact": "PENDING_MANUAL",
+      "notes": "skipped = win32-only APPDATA test; baseline was 52 passed / 1 failed"
+    },
+    {
+      "os": "Windows",
+      "version": "windows-latest (GitHub Actions)",
+      "python": "3.12",
+      "command": "python -m pytest -q",
+      "result": {
+        "passed": null,
+        "failed": null,
+        "skipped": null,
+        "not_run": null
+      },
+      "gui_launch": "NOT_RUN",
+      "build_artifact": "PENDING_CI",
+      "notes": "awaiting CI run on pushed branch"
+    }
+  ]
+}

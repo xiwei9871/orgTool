@@ -1,6 +1,6 @@
 # Desktop Smart Organizer
 
-桌面智能整理工具 MVP，面向 Windows 桌面文件整理和发票归档两个高频场景。
+桌面智能整理工具，面向桌面文件整理和发票归档两个高频场景，支持 Windows 与 macOS。
 
 ## 功能概览
 
@@ -9,10 +9,11 @@
 - 发票待处理目录扫描、文本提取、解析、去重和归档
 - 按月份归档发票，并导出 Excel 台账
 - PySide6 图形界面，包含“桌面整理”和“发票管理”两个页面
+- 扫描、预览、归档均在后台线程执行，界面可取消、关闭时安全停止
 
 ## 运行环境
 
-- Windows
+- Windows 10+ / macOS 13+
 - Python 3.11+
 
 ## 安装依赖
@@ -37,37 +38,33 @@ pytest -q
 
 ## 打包
 
-使用脚本打包 Windows 可执行文件：
+Windows（生成 `dist\DesktopSmartOrganizer.exe`，未签名）：
 
 ```powershell
 powershell -ExecutionPolicy Bypass -File .\scripts\build_windows.ps1
 ```
 
-或直接运行：
+macOS（生成 `dist/DesktopSmartOrganizer.app` 与 `dist/DesktopSmartOrganizer-macos.zip`，未签名未公证）：
 
-```powershell
-python -m PyInstaller --noconfirm --onefile --windowed main.py --name DesktopSmartOrganizer
+```bash
+bash ./scripts/build_macos.sh
 ```
 
-默认输出：
-
-```text
-dist\DesktopSmartOrganizer.exe
-```
+未签名产物首次运行需要在系统安全设置中允许（macOS: 系统设置 → 隐私与安全性；Windows: SmartScreen 提示）。
 
 ## 运行时目录
 
-应用优先将配置、日志、任务记录写入：
+应用优先将配置、日志、任务记录写入平台用户目录：
 
 ```text
-%APPDATA%\DesktopSmartOrganizer\
+Windows: %APPDATA%\DesktopSmartOrganizer\
+macOS:   ~/Library/Application Support/DesktopSmartOrganizer/
+Linux:   ~/.config/DesktopSmartOrganizer/
 ```
 
-如果当前环境无法写入 `%APPDATA%`，会自动回退到：
+可用环境变量 `ORGTOOL_RUNTIME_DIR` 覆盖（测试/便携模式）。如果平台目录不可写，回退到 `<cwd>/.runtime/DesktopSmartOrganizer/`。
 
-```text
-<project_root>\.runtime\DesktopSmartOrganizer\
-```
+首次升级时，旧版 `.runtime` 目录（POSIX 上还包括误用的 `~/AppData/Roaming/` 目录）中的配置与任务记录会自动迁移到平台目录，原目录保留作为备份。
 
 ## 发票目录建议
 
@@ -105,7 +102,6 @@ Desktop\发票管理\
 
 ## 当前限制
 
-- 仅支持 Windows
 - 桌面整理目前只处理桌面顶层内容
 - 文件夹默认只做预览，不直接移动
 - 发票处理当前优先支持 PDF

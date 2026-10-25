@@ -1,0 +1,28 @@
+id,phase,category,case,method,environment,status,notes
+S1-01,S1,paths,平台用户目录解析 (platformdirs),auto,macOS+Windows CI,PASS,tests/utils/test_paths.py + test_config_manager.py
+S1-02,S1,paths,ORGTOOL_RUNTIME_DIR 覆盖,auto,macOS,PASS,test_runtime_paths_use_runtime_dir_override
+S1-03,S1,paths,Windows APPDATA 解析,auto,Windows CI,PENDING_CI,skipif win32
+S1-04,S1,paths,旧 .runtime 配置迁移,auto,macOS,PASS,test_from_env_migrates_legacy_runtime_directory
+S1-05,S1,paths,迁移幂等不覆盖用户修改,auto,macOS,PASS,test_migration_is_idempotent_and_preserves_user_changes
+S1-06,S1,paths,已有配置不被迁移覆盖,auto,macOS,PASS,test_migration_skips_when_target_config_exists
+S1-07,S1,paths,POSIX 旧 AppData 目录迁移,auto,macOS,PASS,test_migration_handles_legacy_appdata_dir_on_posix
+S1-08,S1,paths,不可写主目录回退 .runtime,auto,macOS,PASS,test_runtime_paths_fall_back_when_primary_root_is_not_writable
+S1-09,S1,shell,macOS open/open -R 分派,auto,macOS,PASS,test_shell.py
+S1-10,S1,shell,Windows startfile/explorer /select,auto,mock,PASS,test_shell.py
+S1-11,S1,shell,Linux xdg-open,auto,mock,PASS,test_shell.py
+S1-12,S1,shell,非法路径 FileNotFoundError,auto,macOS,PASS,test_open_in_file_explorer_raises_for_missing_path
+S1-13,S1,shell,中文/空格路径透传,auto,macOS,PASS,test_chinese_and_space_paths_pass_through_unquoted
+S1-14,S1,desktop,Windows Known Folder 桌面解析,auto,mock,PASS,test_desktop.py
+S1-15,S1,desktop,macOS ~/Desktop + iCloud 回退,auto,macOS,PASS,test_desktop.py
+S1-16,S1,desktop,XDG user-dirs 解析,auto,mock,PASS,test_desktop.py
+S1-17,S1,gui,后台扫描不阻塞 UI,auto,macOS,PASS,test_scan_desktop_runs_in_background_and_updates_ui
+S1-18,S1,gui,任务取消,auto,macOS,PASS,test_cancel_running_tasks_marks_status
+S1-19,S1,gui,关闭时停止并等待任务,auto,macOS,PASS,test_close_event_stops_and_waits_for_running_task
+S1-20,S1,gui,任务失败展示,auto,macOS,PASS,test_failed_background_task_shows_warning
+S1-21,S1,gui,发票非法根目录提示,auto,macOS,PASS,test_main_window_scan_invoices_handles_invalid_root_gracefully
+S1-22,S1,regression,原测试套件回归,auto,macOS,PASS,93 passed 1 skipped
+S1-23,S1,build,macOS .app+zip 构建脚本,manual,macOS,PENDING_MANUAL,scripts/build_macos.sh (PyInstaller 本机构建耗时,CI 执行)
+S1-24,S1,build,Windows .exe 构建脚本,manual,Windows,PENDING_CI,scripts/build_windows.ps1 + CI
+S1-25,S1,ci,GitHub Actions 双平台测试,ci,GitHub,PENDING_CI,workflows/tests.yml
+S1-26,S1,ci,GitHub Actions 双平台构建,ci,GitHub,PENDING_CI,workflows/build.yml
+S1-27,S1,gui,真实 GUI 启动,manual,macOS,PASS,python main.py 等价启动 exit=0

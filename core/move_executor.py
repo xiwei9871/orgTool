@@ -3,10 +3,12 @@
 from __future__ import annotations
 
 import shutil
+import threading
 from datetime import datetime
 from pathlib import Path
 
 from core.conflict_resolver import resolve_conflict_path
+from core.errors import raise_if_cancelled
 from core.task_store import TaskStore
 from models.desktop import PreviewItem
 from models.task import TaskItemRecord, TaskRecord
@@ -18,7 +20,12 @@ class MoveExecutor:
     def __init__(self, task_store: TaskStore) -> None:
         self.task_store = task_store
 
-    def execute(self, task_type: str, preview_items: list[PreviewItem]) -> TaskRecord:
+    def execute(
+        self,
+        task_type: str,
+        preview_items: list[PreviewItem],
+        cancel_event: threading.Event | None = None,
+    ) -> TaskRecord:
         """Execute preview items and persist task history."""
         created_at = datetime.now().isoformat(timespec="seconds")
         task_id = f"{task_type}-{datetime.now().strftime('%Y%m%d%H%M%S')}"
@@ -28,6 +35,7 @@ class MoveExecutor:
         error_count = 0
 
         for preview in preview_items:
+            raise_if_cancelled(cancel_event)
             if preview.is_skipped:
                 skipped_count += 1
                 task_items.append(

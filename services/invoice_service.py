@@ -3,11 +3,13 @@
 from __future__ import annotations
 
 import shutil
+import threading
 from datetime import datetime
 from pathlib import Path
 
 from config.schema import InvoiceConfig
 from core.conflict_resolver import resolve_conflict_path
+from core.errors import raise_if_cancelled
 from core.task_store import TaskStore
 from invoice.archive_planner import InvoiceArchivePlanner
 from invoice.deduplicator import InvoiceDeduplicator
@@ -41,21 +43,35 @@ class InvoiceService:
         self.excel_exporter = InvoiceExcelExporter()
         self.task_store = TaskStore(runtime_paths)
 
-    def scan_pending(self, config: InvoiceConfig) -> list[Path]:
-        """Return pending PDF invoices."""
-        pending_dir = Path(config.root_dir) / config.pending_dir_name
+    def scan_pending(
+        self,
+        config: InvoiceConfig,
+        cancel_event: threading.Event | None = None,
+    ) -> list[Path]:
+        """Return pending PDF invoices.
+
+        Raises ``FileNotFoundError`` when the configured invoice root does
+        not exist so the caller can surface a clear message instead of
+        silently creating directories from a mistyped path.
+        """
+        root_dir = Path(config.root_dir.strip()) if config.root_dir.strip() else None
+        if root_dir is None or not root_dir.exists():
+            raise FileNotFoundError(f"发票主目录不存在: {config.root_dir or '(未配置)'}")
+        pending_dir = root_dir / config.pending_dir_name
         pending_dir.mkdir(parents=True, exist_ok=True)
-        return self.scanner.scan_pending_dir(pending_dir)
+        return self.scanner.scan_pending_dir(pending_dir, cancel_event=cancel_event)
 
     def build_preview(
         self,
         pending_files: list[Path],
         config: InvoiceConfig,
+        cancel_event: threading.Event | None = None,
     ) -> list[InvoicePreviewItem]:
         """Build preview rows for pending invoices."""
         preview_items: list[InvoicePreviewItem] = []
 
         for path in pending_files:
+            raise_if_cancelled(cancel_event)
             extraction = self.pdf_extractor.extract_text(path)
             record = self.parser.parse(
                 file_path=path,
@@ -105,6 +121,7 @@ class InvoiceService:
         self,
         preview_items: list[InvoicePreviewItem],
         config: InvoiceConfig,
+        cancel_event: threading.Event | None = None,
     ) -> TaskRecord:
         """Execute invoice archive moves, metadata updates, and report export."""
         created_at = datetime.now().isoformat(timespec="seconds")
@@ -124,6 +141,7 @@ class InvoiceService:
         error_count = 0
 
         for preview in preview_items:
+            raise_if_cancelled(cancel_event)
             if preview.is_skipped:
                 skipped_count += 1
                 task.items.append(

@@ -4,6 +4,8 @@ from __future__ import annotations
 
 import os
 import sys
+import threading
+import time
 from pathlib import Path
 from types import SimpleNamespace
 
@@ -11,6 +13,7 @@ from PySide6.QtWidgets import QApplication
 
 import gui.main_window as main_window_module
 from config.schema import AppConfig
+from core.errors import raise_if_cancelled
 from gui.main_window import MainWindow
 from utils.paths import RuntimePaths
 
@@ -20,6 +23,42 @@ os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
 def _app() -> QApplication:
     app = QApplication.instance()
     return app if app is not None else QApplication(sys.argv)
+
+
+def _runtime_paths(tmp_path: Path) -> RuntimePaths:
+    paths = RuntimePaths.from_root(tmp_path / "runtime")
+    paths.ensure_dirs()
+    return paths
+
+
+def _fake_manager(config: AppConfig, paths: RuntimePaths) -> SimpleNamespace:
+    return SimpleNamespace(
+        load=lambda: config,
+        save=lambda updated: updated,
+        paths=paths,
+    )
+
+
+def _install_fake_manager(
+    monkeypatch, config: AppConfig, paths: RuntimePaths
+) -> None:
+    fake_manager = _fake_manager(config, paths)
+    monkeypatch.setattr(
+        main_window_module.ConfigManager,
+        "for_app",
+        classmethod(lambda cls: fake_manager),
+    )
+
+
+def _pump_until(predicate, timeout_seconds: float = 10.0) -> None:
+    """Process Qt events until the predicate holds or the deadline passes."""
+    app = _app()
+    deadline = time.monotonic() + timeout_seconds
+    while not predicate():
+        if time.monotonic() > deadline:
+            raise AssertionError("Timed out waiting for background task")
+        app.processEvents()
+        time.sleep(0.01)
 
 
 def test_main_window_instantiates_with_two_pages() -> None:
@@ -93,7 +132,10 @@ def test_main_window_scan_invoices_handles_invalid_root_gracefully(
     _app()
     config = AppConfig()
     config.general.desktop_path = str(tmp_path / "desktop")
-    config.invoice.root_dir = "D:\\??\\????"
+    # A regular file is never a usable invoice root on any platform.
+    blocking_file = tmp_path / "not-a-directory"
+    blocking_file.write_text("x", encoding="utf-8")
+    config.invoice.root_dir = str(blocking_file)
     runtime_paths = RuntimePaths(
         root=tmp_path / "runtime",
         config_file=tmp_path / "runtime" / "config.json",
@@ -160,3 +202,176 @@ def test_main_window_prefers_configured_desktop_path(
     window = MainWindow()
 
     assert window.desktop_root == configured_desktop
+
+
+def test_scan_desktop_runs_in_background_and_updates_ui(
+    tmp_path: Path, monkeypatch
+) -> None:
+    """Desktop scanning should run off the GUI thread and update the page."""
+    _app()
+    desktop = tmp_path / "桌面 目录"
+    desktop.mkdir()
+    (desktop / "报告 最终版.txt").write_text("x", encoding="utf-8")
+    (desktop / "照片 2026-01.png").write_text("x", encoding="utf-8")
+
+    config = AppConfig()
+    config.general.desktop_path = str(desktop)
+    _install_fake_manager(monkeypatch, config, _runtime_paths(tmp_path))
+    monkeypatch.setattr(
+        main_window_module, "resolve_desktop_directory", lambda: desktop
+    )
+
+    window = MainWindow()
+    window.scan_desktop()
+
+    _pump_until(lambda: window.desktop_scan_result is not None)
+
+    names = [item.name for item in window.desktop_scan_result]
+    assert "报告 最终版.txt" in names
+    assert "照片 2026-01.png" in names
+    assert "扫描完成" in window.app_status_bar.message_label.text()
+    assert window.desktop_page.scan_button.isEnabled()
+
+
+def test_scan_invoices_runs_in_background(tmp_path: Path, monkeypatch) -> None:
+    """Invoice scanning should run off the GUI thread."""
+    _app()
+    desktop = tmp_path / "desktop"
+    invoice_root = tmp_path / "发票管理"
+    pending = invoice_root / "发票归档_待处理"
+    pending.mkdir(parents=True)
+    (pending / "测试发票.pdf").write_text("fake", encoding="utf-8")
+
+    config = AppConfig()
+    config.general.desktop_path = str(desktop)
+    config.invoice.root_dir = str(invoice_root)
+    _install_fake_manager(monkeypatch, config, _runtime_paths(tmp_path))
+    monkeypatch.setattr(
+        main_window_module, "resolve_desktop_directory", lambda: desktop
+    )
+
+    window = MainWindow()
+    window.scan_invoices()
+
+    _pump_until(lambda: window.invoice_scan_result is not None)
+
+    assert [p.name for p in window.invoice_scan_result] == ["测试发票.pdf"]
+    assert "扫描完成" in window.app_status_bar.message_label.text()
+
+
+def test_cancel_running_tasks_marks_status(tmp_path: Path, monkeypatch) -> None:
+    """Cancelling a background task should surface a cancelled status."""
+    _app()
+    desktop = tmp_path / "desktop"
+    desktop.mkdir()
+    config = AppConfig()
+    config.general.desktop_path = str(desktop)
+    _install_fake_manager(monkeypatch, config, _runtime_paths(tmp_path))
+    monkeypatch.setattr(
+        main_window_module, "resolve_desktop_directory", lambda: desktop
+    )
+
+    window = MainWindow()
+    started = threading.Event()
+
+    def work(cancel_event: threading.Event) -> None:
+        started.set()
+        cancel_event.wait(10)
+        raise_if_cancelled(cancel_event)
+
+    window._start_task(window.desktop_page, "运行中", work, lambda result: None)
+    _pump_until(started.is_set)
+
+    assert not window.desktop_page.scan_button.isEnabled()
+    window.cancel_running_tasks()
+    _pump_until(
+        lambda: "已取消" in window.app_status_bar.message_label.text()
+    )
+    assert window.desktop_page.scan_button.isEnabled()
+
+
+def test_close_event_stops_and_waits_for_running_task(
+    tmp_path: Path, monkeypatch
+) -> None:
+    """Closing the window should signal and wait for running tasks."""
+    _app()
+    desktop = tmp_path / "desktop"
+    desktop.mkdir()
+    config = AppConfig()
+    config.general.desktop_path = str(desktop)
+    _install_fake_manager(monkeypatch, config, _runtime_paths(tmp_path))
+    monkeypatch.setattr(
+        main_window_module, "resolve_desktop_directory", lambda: desktop
+    )
+
+    window = MainWindow()
+    started = threading.Event()
+    finished = threading.Event()
+
+    def work(cancel_event: threading.Event) -> None:
+        started.set()
+        cancel_event.wait(10)
+        finished.set()
+
+    window._start_task(window.desktop_page, "运行中", work, lambda result: None)
+    _pump_until(started.is_set)
+
+    window.close()
+
+    assert finished.wait(5)
+
+
+def test_failed_background_task_shows_warning(tmp_path: Path, monkeypatch) -> None:
+    """Worker failures should surface in the status bar and a dialog."""
+    _app()
+    desktop = tmp_path / "desktop"
+    desktop.mkdir()
+    config = AppConfig()
+    config.general.desktop_path = str(desktop)
+    _install_fake_manager(monkeypatch, config, _runtime_paths(tmp_path))
+    monkeypatch.setattr(
+        main_window_module, "resolve_desktop_directory", lambda: desktop
+    )
+    warnings: list[str] = []
+    monkeypatch.setattr(
+        main_window_module.QMessageBox,
+        "warning",
+        lambda *args: warnings.append(str(args[-1])),
+    )
+
+    window = MainWindow()
+
+    def work(cancel_event: threading.Event) -> None:
+        raise OSError("disk exploded")
+
+    window._start_task(window.desktop_page, "运行中", work, lambda result: None)
+    _pump_until(lambda: "任务失败" in window.app_status_bar.message_label.text() or "路径不可用" in window.app_status_bar.message_label.text())
+
+    assert warnings
+
+
+def test_undo_desktop_runs_in_background(tmp_path: Path, monkeypatch) -> None:
+    """Undo should run via the worker pool without blocking the UI."""
+    _app()
+    desktop = tmp_path / "desktop"
+    desktop.mkdir()
+    config = AppConfig()
+    config.general.desktop_path = str(desktop)
+    _install_fake_manager(monkeypatch, config, _runtime_paths(tmp_path))
+    monkeypatch.setattr(
+        main_window_module, "resolve_desktop_directory", lambda: desktop
+    )
+    monkeypatch.setattr(
+        main_window_module.QMessageBox, "information", lambda *args: None
+    )
+    monkeypatch.setattr(
+        main_window_module.QMessageBox, "warning", lambda *args: None
+    )
+
+    window = MainWindow()
+    window.undo_desktop()
+
+    _pump_until(
+        lambda: "撤销" in window.app_status_bar.message_label.text()
+        or "扫描" in window.app_status_bar.message_label.text()
+    )
