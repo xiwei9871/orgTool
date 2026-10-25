@@ -466,6 +466,9 @@ class InvoiceService:
             self.metadata_store.save_records(records)
             month_key = plan_month(record.invoice_date)
             self.export_monthly_ledger(month_key, config, metadata_records=records)
+        # File identified non-invoices away automatically so pending
+        # only keeps items needing human attention.
+        self.archive_non_invoices(candidates, config, cancel_event)
         return candidates
 
     def export_monthly_ledger(

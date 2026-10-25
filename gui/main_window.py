@@ -794,20 +794,37 @@ class MainWindow(QMainWindow):
             return
 
         preview_items = list(self.invoice_preview_result)
+        candidates = list(self.archive_candidates)
         config = self.config.invoice
 
         def work(cancel_event: threading.Event):
-            return self.invoice_service.execute_preview(preview_items, config, cancel_event)
+            task = self.invoice_service.execute_preview(
+                preview_items, config, cancel_event
+            )
+            # Non-invoice attachments are filed automatically too, so
+            # pending only keeps items that genuinely need a human.
+            non_invoice = (
+                self.invoice_service.archive_non_invoices(
+                    candidates, config, cancel_event
+                )
+                if candidates
+                else {"moved": [], "merged": [], "kept": []}
+            )
+            return task, non_invoice
 
-        def apply(task) -> None:
+        def apply(result) -> None:
+            task, non_invoice = result
             QMessageBox.information(
                 self,
                 "执行完成",
-                f"发票处理完成。移动 {task.summary.get('moved', 0)} 项，跳过 {task.summary.get('skipped', 0)} 项。",
+                f"发票处理完成。归档 {task.summary.get('moved', 0)} 张发票，"
+                f"移出非发票 {len(non_invoice['moved']) + len(non_invoice['merged'])} 份，"
+                f"跳过 {task.summary.get('skipped', 0)} 项。",
             )
             self.app_status_bar.set_message("发票处理执行完成")
             self.invoice_preview_result = None
             self._update_archive_stats()
+            self._update_invoice_dir_stats()
             self._refresh_month_combo()
             # Re-evaluate so archived rows leave the pending list — the
             # table should now show only the non-archivable remainder.
