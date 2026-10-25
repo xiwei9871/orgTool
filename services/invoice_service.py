@@ -534,7 +534,7 @@ class InvoiceService:
 
 
     _NON_INVOICE_MOVABLE_TYPES = {
-        "travel_voucher", "hotel_folio", "other_pdf", "unknown",
+        "travel_voucher", "hotel_folio", "other_pdf",
     }
 
     def archive_non_invoices(
@@ -546,8 +546,10 @@ class InvoiceService:
         """Move identified non-invoice PDFs out of pending into the
         review/non-invoice attachment directory.
 
-        ``needs_ocr`` files stay pending — they still need OCR/manual
-        handling.  Name conflicts are resolved by content: an identical
+        Only *confidently classified* non-invoices auto-file: voucher,
+        folio and generic other_pdf.  ``needs_ocr`` and ``unknown`` stay
+        pending — low-confidence items always wait for a human.
+        Name conflicts are resolved by content: an identical
         (same-hash) file already in the review dir means the pending
         copy is redundant and is removed; a different file with the
         same name gets a numeric suffix.  ``.source.json`` sidecars

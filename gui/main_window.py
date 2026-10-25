@@ -1093,8 +1093,8 @@ class MainWindow(QMainWindow):
         reply = QMessageBox.question(
             self,
             "归档非发票",
-            f"将把 {movable} 份非发票附件移入「待审核附件」目录。\n"
-            "needs_ocr 文件保留在待处理中。继续？",
+            f"将把 {movable} 份已确认非发票附件移入「待审核附件」目录。\n"
+            "无法识别或需 OCR 的文件保留在待处理中。继续？",
         )
         if reply != QMessageBox.Yes:
             return

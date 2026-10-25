@@ -316,20 +316,24 @@ def test_archive_non_invoices_moves_and_keeps(tmp_path: Path) -> None:
     (pending / "folio.pdf").write_bytes(b"A" * 10)
     (pending / "rental.pdf").write_bytes(b"B" * 10)
     (pending / "scan.pdf").write_bytes(b"C" * 10)
+    (pending / "misc.pdf").write_bytes(b"D" * 10)
 
     result = service.archive_non_invoices(
         [cand("folio.pdf", "hotel_folio"),
          cand("rental.pdf", "unknown"),
-         cand("scan.pdf", "needs_ocr")],
+         cand("scan.pdf", "needs_ocr"),
+         cand("misc.pdf", "other_pdf")],
         config,
     )
     review = Path(config.root_dir) / "待审核附件"
     assert (review / "folio.pdf").exists()
-    assert (review / "rental.pdf").exists()
+    assert (review / "misc.pdf").exists()
+    # 不确定/低置信度的留下等人工：unknown 和 needs_ocr 都保留
     assert (pending / "scan.pdf").exists()
+    assert (pending / "rental.pdf").exists()
     assert not (pending / "folio.pdf").exists()
     assert len(result["moved"]) == 2
-    assert len(result["kept"]) == 1
+    assert len(result["kept"]) == 2
 
 
 def test_archive_non_invoices_merges_same_hash(tmp_path: Path) -> None:
