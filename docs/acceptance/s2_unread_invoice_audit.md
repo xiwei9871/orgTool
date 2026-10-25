@@ -1,6 +1,7 @@
-# S2 未读邮件专项发票提取审计
+# S2 未读邮件专项发票提取审计（S2 封版验收）
 
 - 日期：2026-10-25；账户 `chenduanxiwei@163.com`（本机 Keychain 凭证，未输出授权码）
+- **封版结论：验收通过**。只读审计零失败、未读状态零改变；归档管线双层 Document Gate（预览分类 + 执行复核 `326695a`）已生效，非发票无法进入台账。28 张 e_invoice 未执行归档，48 份真实文件未动。
 - 范围：**冻结 `UID SEARCH UNSEEN` 返回的 105 个 UID**，逐封只读处理（readonly SELECT + BODY.PEEK，全程无 STORE，不改已读状态）
 - 组件：`ImapClient.uid_search(unseen=True)`、`invoice/doc_classifier.py`（新）、`mail/unseen_audit.py`（新）
 
@@ -94,3 +95,9 @@
 执行时校验：`execute_preview` 原来仅信任预览行的 `is_skipped` 标记；已补齐后端复核——若 `record.doc_type != e_invoice`，即便 `is_skipped=False`（陈旧/伪造预览行）也按 `non_invoice:<type>` 跳过，不产生 move/台账/Excel。回归测试 `test_execute_preview_rechecks_document_gate` 用伪造预览行验证 moved=0、文件原地保留、归档目录不创建。
 
 全套测试 **204 passed, 1 skipped**。
+
+## 八、封版状态
+
+- 分支 `feature/s2-unread-invoice-audit` 已与 main 同步（main 已含 PR #6 合并 `a447152+c00b9fc`；分支多出执行时复核 `326695a`）。
+- 28 张 e_invoice **未执行归档**，48 份真实文件未移动/删除/覆盖，未生成财务台账。
+- 开放项：S3.1 字段识别优化（8 张金额错误、seller/buyer、税额、内容字段、置信度分级）——在独立分支进行。
