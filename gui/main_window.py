@@ -102,6 +102,7 @@ class MainWindow(QMainWindow):
         self.desktop_page.open_logs_button.clicked.connect(self.open_logs)
         self.desktop_page.settings_button.clicked.connect(self.open_settings)
 
+        self.invoice_page.process_button.clicked.connect(self.process_invoices)
         self.invoice_page.scan_button.clicked.connect(self.scan_invoices)
         self.invoice_page.preview_button.clicked.connect(self.preview_invoices)
         self.invoice_page.evaluate_button.clicked.connect(self.evaluate_invoices)
@@ -167,6 +168,7 @@ class MainWindow(QMainWindow):
                 self.desktop_page.undo_button,
             ]
         return [
+            self.invoice_page.process_button,
             self.invoice_page.scan_button,
             self.invoice_page.preview_button,
             self.invoice_page.evaluate_button,
@@ -835,6 +837,15 @@ class MainWindow(QMainWindow):
     # ------------------------------------------------------------------
     # S3.3 archive admission, manual review, monthly ledger
     # ------------------------------------------------------------------
+
+    def process_invoices(self) -> None:
+        """One-click pipeline: evaluate admission then auto-execute.
+
+        Evaluation fills the preview table; execution archives eligible
+        invoices and files away identified non-invoices, leaving only
+        low-confidence items for review.
+        """
+        self.evaluate_invoices(on_done=self.execute_invoices)
 
     def evaluate_invoices(
         self, on_done: Callable[[], None] | None = None

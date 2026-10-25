@@ -2,12 +2,15 @@
 
 from __future__ import annotations
 
+from PySide6.QtGui import QAction
 from PySide6.QtWidgets import (
     QComboBox,
     QHBoxLayout,
     QLabel,
+    QMenu,
     QPushButton,
     QTableView,
+    QToolButton,
     QVBoxLayout,
     QWidget,
 )
@@ -22,10 +25,10 @@ from gui.widgets.summary_cards import SummaryCards
 class InvoicePage(QWidget):
     """Invoice processing controls and preview table.
 
-    Layout order (top to bottom): invoice root path, one-line mail sync
-    status, archive/review stats, action buttons, folder shortcuts,
-    month filter + ledger export, table — so at 1280x800 at least a
-    dozen invoice rows are visible.
+    The pipeline is automated, so the page keeps a single primary
+    action (一键处理) plus review/PDF/import affordances.  Folder
+    shortcuts collapse into one menu; the legacy per-step buttons still
+    exist as bound-but-hidden members for compatibility.
     """
 
     def __init__(self) -> None:
@@ -42,6 +45,7 @@ class InvoicePage(QWidget):
         )
         self.dir_stats_label = QLabel("目录统计: -")
 
+        self.process_button = QPushButton("一键处理")
         self.scan_button = QPushButton("扫描待处理发票")
         self.preview_button = QPushButton("生成处理预览")
         self.evaluate_button = QPushButton("评估自动归档")
@@ -51,6 +55,10 @@ class InvoicePage(QWidget):
         self.review_button = QPushButton("审核选中项")
         self.view_pdf_button = QPushButton("查看PDF")
         self.import_button = QPushButton("导入PDF")
+
+        self.dirs_button = QToolButton()
+        self.dirs_button.setText("目录 ▾")
+        self.dirs_button.setPopupMode(QToolButton.InstantPopup)
         self.open_pending_button = QPushButton("打开待处理目录")
         self.open_review_button = QPushButton("打开非发票目录")
         self.open_archive_button = QPushButton("打开归档目录")
@@ -58,27 +66,34 @@ class InvoicePage(QWidget):
         self.open_report_button = QPushButton("打开报表目录")
         self.open_root_button = QPushButton("打开发票目录")
         self.open_logs_button = QPushButton("打开日志目录")
+        dirs_menu = QMenu(self.dirs_button)
+        for button in (
+            self.open_pending_button,
+            self.open_review_button,
+            self.open_archive_button,
+            self.open_month_button,
+            self.open_report_button,
+            self.open_root_button,
+            self.open_logs_button,
+        ):
+            action = QAction(button.text(), dirs_menu)
+            action.triggered.connect(button.click)
+            dirs_menu.addAction(action)
+        self.dirs_button.setMenu(dirs_menu)
 
         button_row = QHBoxLayout()
-        button_row.addWidget(self.scan_button)
-        button_row.addWidget(self.preview_button)
-        button_row.addWidget(self.evaluate_button)
-        button_row.addWidget(self.execute_button)
-        button_row.addWidget(self.duplicate_button)
-        button_row.addWidget(self.archive_non_invoice_button)
+        button_row.addWidget(self.process_button)
         button_row.addWidget(self.review_button)
         button_row.addWidget(self.view_pdf_button)
         button_row.addWidget(self.import_button)
+        button_row.addWidget(self.duplicate_button)
+        button_row.addWidget(self.dirs_button)
+        button_row.addStretch(1)
 
-        folder_row = QHBoxLayout()
-        folder_row.addWidget(self.open_pending_button)
-        folder_row.addWidget(self.open_review_button)
-        folder_row.addWidget(self.open_archive_button)
-        folder_row.addWidget(self.open_month_button)
-        folder_row.addWidget(self.open_report_button)
-        folder_row.addWidget(self.open_root_button)
-        folder_row.addWidget(self.open_logs_button)
-        folder_row.addStretch(1)
+        stats_row = QHBoxLayout()
+        stats_row.addWidget(self.archive_stats_label)
+        stats_row.addWidget(self.dir_stats_label)
+        stats_row.addStretch(1)
 
         self.month_combo = QComboBox()
         self.month_combo.setEditable(False)
@@ -98,10 +113,8 @@ class InvoicePage(QWidget):
         layout = QVBoxLayout(self)
         layout.addWidget(self.invoice_root_path)
         layout.addWidget(self.mail_status_bar)
-        layout.addWidget(self.archive_stats_label)
-        layout.addWidget(self.dir_stats_label)
+        layout.addLayout(stats_row)
         layout.addLayout(button_row)
-        layout.addLayout(folder_row)
         layout.addLayout(ledger_row)
         layout.addWidget(self.summary_cards)
         layout.addWidget(self.table_view)
