@@ -14,14 +14,17 @@ from core.task_store import TaskStore
 from invoice.archive_planner import InvoiceArchivePlanner
 from invoice.deduplicator import InvoiceDeduplicator
 from invoice.doc_classifier import DOC_E_INVOICE, classify_pdf_text
+from invoice.eligibility import evaluate_eligibility
 from invoice.excel_exporter import InvoiceExcelExporter
+from invoice.expense_categories import suggest_category
 from invoice.invoice_service_helpers import modified_time_for
+from invoice.ledger_exporter import MonthlyLedgerExporter
 from invoice.metadata_store import InvoiceMetadataStore
 from invoice.parser import InvoiceParser
 from invoice.pdf_text_extractor import PdfTextExtractor
 from invoice.scanner import InvoiceScanner
 from mail.importer import load_source_sidecar
-from models.invoice import InvoicePreviewItem, InvoiceRecord
+from models.invoice import ArchiveCandidate, InvoicePreviewItem, InvoiceRecord
 from models.task import TaskItemRecord, TaskRecord
 from utils.file_hash import compute_file_hash
 from utils.paths import RuntimePaths
@@ -43,6 +46,7 @@ class InvoiceService:
         self.deduplicator = InvoiceDeduplicator(self.metadata_store)
         self.archive_planner = InvoiceArchivePlanner()
         self.excel_exporter = InvoiceExcelExporter()
+        self.ledger_exporter = MonthlyLedgerExporter()
         self.task_store = TaskStore(runtime_paths)
 
     def scan_pending(
@@ -88,6 +92,9 @@ class InvoiceService:
             # 16/20 non-invoices were parsed "complete").
             record.doc_type = classify_pdf_text(extraction.text)
             self._attach_mail_source(record, path)
+            self._apply_manual_overrides(record)
+            if not record.expense_category:
+                record.expense_category = suggest_category(record)
             duplicate_result = self.deduplicator.check(record)
             plan = self.archive_planner.plan(record, duplicate_result.status, config)
 
@@ -179,7 +186,16 @@ class InvoiceService:
 
         for preview in preview_items:
             raise_if_cancelled(cancel_event)
-            if preview.is_skipped:
+            # Execute-time gate: re-verify the document type instead of
+            # trusting the preview flag alone, so a non-invoice can never
+            # reach the ledger even if a preview row was built or
+            # tampered with before classification ran.
+            gated = (
+                preview.record is not None
+                and preview.record.doc_type
+                and preview.record.doc_type != DOC_E_INVOICE
+            )
+            if preview.is_skipped or gated:
                 skipped_count += 1
                 task.items.append(
                     TaskItemRecord(
@@ -188,7 +204,11 @@ class InvoiceService:
                         operation="skip",
                         item_type="invoice",
                         status="skipped",
-                        error=preview.skip_reason,
+                        error=(
+                            f"non_invoice:{preview.record.doc_type}"
+                            if gated and not preview.is_skipped
+                            else preview.skip_reason
+                        ),
                         extra={"duplicate_status": preview.duplicate_status},
                     )
                 )
@@ -220,6 +240,10 @@ class InvoiceService:
                 )
 
                 if preview.duplicate_status == "新发票":
+                    preview.record.archive_status = "auto_archived"
+                    preview.record.archived_at = datetime.now().isoformat(
+                        timespec="seconds"
+                    )
                     metadata_records.append(preview.record)
                     touched_months.add(preview.month_key)
             except OSError as exc:
@@ -237,6 +261,9 @@ class InvoiceService:
                 )
 
         self.metadata_store.save_records(metadata_records)
+
+        for month_key in touched_months:
+            self.export_monthly_ledger(month_key, config, metadata_records=metadata_records)
 
         for month_key in touched_months:
             monthly_records = [
@@ -257,3 +284,258 @@ class InvoiceService:
         }
         self.task_store.save(task)
         return task
+
+    # ------------------------------------------------------------------
+    # S3.3 auto-archive admission, manual review, monthly ledger
+    # ------------------------------------------------------------------
+
+    _OVERRIDABLE_FIELDS = (
+        "invoice_number", "invoice_date", "amount", "tax_amount",
+        "buyer", "seller", "invoice_content", "expense_category",
+        "reimburser", "expense_location", "reimburse_state",
+    )
+    _CARRIED_STATE_FIELDS = (
+        "archive_status", "review_status", "expense_category",
+        "reimburser", "expense_location", "reimburse_state", "archived_at",
+    )
+
+    def _apply_manual_overrides(self, record: InvoiceRecord) -> None:
+        """Carry user-confirmed values and workflow state onto a rescan.
+
+        A rescan must never silently replace values the reviewer already
+        confirmed, so stored manual overrides win over re-parsed output.
+        """
+        if not record.file_hash:
+            return
+        stored = next(
+            (
+                r
+                for r in self.metadata_store.load_records()
+                if r.file_hash == record.file_hash
+            ),
+            None,
+        )
+        if stored is None:
+            return
+        for name in self._OVERRIDABLE_FIELDS:
+            if name in stored.manual_overrides:
+                setattr(record, name, stored.manual_overrides[name])
+        for name in self._CARRIED_STATE_FIELDS:
+            value = getattr(stored, name, None)
+            if value and name not in stored.manual_overrides:
+                setattr(record, name, value)
+
+    def evaluate_pending(
+        self,
+        config: InvoiceConfig,
+        cancel_event: threading.Event | None = None,
+    ) -> list[ArchiveCandidate]:
+        """Dry-run evaluation: classify, dedup, hash-verify, eligibility.
+
+        Pure read operation — nothing is moved or persisted.
+        """
+        candidates: list[ArchiveCandidate] = []
+        for path in self.scan_pending(config, cancel_event=cancel_event):
+            raise_if_cancelled(cancel_event)
+            extraction = self.pdf_extractor.extract_text(path)
+            file_hash = compute_file_hash(path, config.hash_algorithm)
+            record = self.parser.parse(
+                file_path=path,
+                extracted_text=extraction.text,
+                file_hash=file_hash,
+                modified_at=modified_time_for(path),
+            )
+            record.doc_type = classify_pdf_text(extraction.text)
+            self._attach_mail_source(record, path)
+            self._apply_manual_overrides(record)
+            if not record.expense_category:
+                record.expense_category = suggest_category(record)
+            duplicate_result = self.deduplicator.check(record)
+            # Re-read bytes to prove the PDF is still readable and its
+            # SHA-256 matches what we fingerprinted moments ago.
+            hash_ok = compute_file_hash(path, config.hash_algorithm) == file_hash
+            verdict = evaluate_eligibility(record, duplicate_result.status, hash_ok)
+            candidates.append(
+                ArchiveCandidate(
+                    record=record,
+                    source_path=str(path),
+                    duplicate_status=duplicate_result.status,
+                    duplicate_reason=duplicate_result.reason,
+                    eligible=verdict.eligible,
+                    reasons=verdict.reasons,
+                )
+            )
+        return candidates
+
+    def _upsert_record(self, record: InvoiceRecord) -> list[InvoiceRecord]:
+        records = self.metadata_store.load_records()
+        for idx, existing in enumerate(records):
+            if existing.file_hash and existing.file_hash == record.file_hash:
+                records[idx] = record
+                return records
+        records.append(record)
+        return records
+
+    def save_manual_review(self, record: InvoiceRecord, updates: dict) -> None:
+        """Persist reviewer edits; rescan will not overwrite them."""
+        clean = {k: v for k, v in updates.items() if k in self._OVERRIDABLE_FIELDS}
+        for name, value in clean.items():
+            setattr(record, name, value)
+        record.manual_overrides.update(clean)
+        self.metadata_store.save_records(self._upsert_record(record))
+
+    def set_review_state(self, record: InvoiceRecord, state: str) -> None:
+        """Mark a record confirmed (ready to archive) or deferred."""
+        record.review_status = state
+        if state == "pending_review":
+            record.archive_status = "deferred"
+        self.metadata_store.save_records(self._upsert_record(record))
+
+    def _move_to_archive(
+        self, record: InvoiceRecord, source: Path, config: InvoiceConfig
+    ) -> Path:
+        plan = self.archive_planner.plan(record, "新发票", config)
+        target = resolve_conflict_path(Path(plan.target_path))
+        target.parent.mkdir(parents=True, exist_ok=True)
+        shutil.move(str(source), str(target))
+        source_sidecar = Path(str(source) + ".source.json")
+        if source_sidecar.exists():
+            shutil.move(str(source_sidecar), str(target) + ".source.json")
+        record.file_path = str(target)
+        record.archived_at = datetime.now().isoformat(timespec="seconds")
+        return target
+
+    def archive_confirmed(
+        self,
+        record: InvoiceRecord,
+        config: InvoiceConfig,
+        status: str = "manually_archived",
+    ) -> Path:
+        """Move a confirmed record into the archive with backend re-checks.
+
+        Re-verifies hash, doc type, eligibility and duplicates so the
+        archive can never be reached through a stale or tampered row.
+        """
+        source = Path(record.file_path)
+        file_hash = compute_file_hash(source, config.hash_algorithm)
+        if record.file_hash and file_hash != record.file_hash:
+            raise ValueError("文件哈希与登记值不一致，拒绝归档")
+        record.file_hash = file_hash
+        extraction = self.pdf_extractor.extract_text(source)
+        record.doc_type = classify_pdf_text(extraction.text)
+        duplicate_result = self.deduplicator.check(record)
+        # Absolute blocks only — doc type and unreadable files. Reviewer
+        # overrides may legitimately clear field-level data issues, so
+        # weak-evidence verdicts are not re-applied here.
+        if record.doc_type != DOC_E_INVOICE:
+            raise ValueError(f"非电子发票({record.doc_type})，拒绝归档")
+        if duplicate_result.status == "强重复":
+            raise ValueError(f"强重复({duplicate_result.reason})，拒绝归档")
+        target = self._move_to_archive(record, source, config)
+        record.archive_status = status
+        record.review_status = "confirmed"
+        records = self._upsert_record(record)
+        self.metadata_store.save_records(records)
+        month_key = plan_month(record.invoice_date)
+        self.export_monthly_ledger(month_key, config, metadata_records=records)
+        return target
+
+    def auto_archive(
+        self,
+        config: InvoiceConfig,
+        dry_run: bool = True,
+        cancel_event: threading.Event | None = None,
+    ) -> list[ArchiveCandidate]:
+        """Evaluate pending files; move eligible ones when not dry-run.
+
+        Eligibility is a hard-condition gate — ``complete`` alone is
+        never sufficient.  Non-eligible items stay in pending and appear
+        in the review queue with reason codes.
+        """
+        candidates = self.evaluate_pending(config, cancel_event=cancel_event)
+        if dry_run:
+            return candidates
+        for candidate in candidates:
+            raise_if_cancelled(cancel_event)
+            if not candidate.eligible:
+                continue
+            record = candidate.record
+            self._move_to_archive(record, Path(candidate.source_path), config)
+            record.archive_status = "auto_archived"
+            records = self._upsert_record(record)
+            self.metadata_store.save_records(records)
+            month_key = plan_month(record.invoice_date)
+            self.export_monthly_ledger(month_key, config, metadata_records=records)
+        return candidates
+
+    def export_monthly_ledger(
+        self,
+        month_key: str,
+        config: InvoiceConfig,
+        reimburser_default: str = "",
+        metadata_records: list[InvoiceRecord] | None = None,
+    ) -> Path:
+        """Regenerate the two-sheet monthly ledger from archived records.
+
+        Pure regeneration — repeated exports can never duplicate rows or
+        double-count amounts.
+        """
+        records = metadata_records if metadata_records is not None else self.metadata_store.load_records()
+        monthly = [
+            r
+            for r in records
+            if (r.archive_status in ("auto_archived", "manually_archived"))
+            and plan_month(r.invoice_date) == month_key
+        ]
+        report_dir = Path(config.root_dir) / config.report_dir_name
+        path = report_dir / f"月度台账_{month_key}.xlsx"
+        return self.ledger_exporter.export(path, monthly, reimburser_default)
+
+    def archived_months(self) -> list[str]:
+        months = {
+            plan_month(r.invoice_date)
+            for r in self.metadata_store.load_records()
+            if r.invoice_date and r.archive_status
+        }
+        return sorted(months, reverse=True)
+
+    _OTHER_VOUCHER_TYPES = {"travel_voucher", "hotel_folio", "other_pdf"}
+    _UNIDENTIFIED_TYPES = {"needs_ocr", "unknown"}
+
+    def review_summary(self, candidates: list[ArchiveCandidate]) -> dict:
+        """Split non-eligible items into meaningful buckets.
+
+        Only e_invoice records with field-level problems need human
+        review; recognized non-invoices are either other vouchers
+        (already identifiable) or unidentified files (OCR/unknown).
+        """
+        eligible = sum(1 for c in candidates if c.eligible)
+        return {
+            "eligible": eligible,
+            "needs_review": sum(
+                1
+                for c in candidates
+                if not c.eligible and c.record.doc_type == DOC_E_INVOICE
+            ),
+            "other_voucher": sum(
+                1
+                for c in candidates
+                if c.record.doc_type in self._OTHER_VOUCHER_TYPES
+            ),
+            "unidentified": sum(
+                1
+                for c in candidates
+                if c.record.doc_type in self._UNIDENTIFIED_TYPES
+            ),
+        }
+
+
+def plan_month(invoice_date: str) -> str:
+    """``YYYY-MM-DD`` -> ``YYYYMM`` (empty for missing/invalid dates)."""
+    try:
+        parts = invoice_date.split("-")
+        if len(parts) == 3 and len(parts[0]) == 4:
+            return parts[0] + parts[1]
+    except (AttributeError, IndexError):
+        pass
+    return ""

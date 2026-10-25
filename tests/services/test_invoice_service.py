@@ -148,3 +148,57 @@ def test_document_gate_blocks_non_invoice_from_archive(tmp_path: Path) -> None:
     assert folio.exists() is True
     # nothing landed in the monthly archive
     assert not (invoice_root / "按月份归档").exists()
+
+
+def test_execute_preview_rechecks_document_gate(tmp_path: Path) -> None:
+    """Execute-time must re-verify doc_type even when is_skipped was cleared."""
+    from models.invoice import InvoicePreviewItem, InvoiceRecord
+
+    invoice_root = tmp_path / "invoice_root"
+    pending_dir = invoice_root / "发票归档_待处理"
+    pending_dir.mkdir(parents=True)
+    folio = pending_dir / "结账单.pdf"
+    folio.write_text("fake-pdf", encoding="utf-8")
+
+    runtime_root = tmp_path / "runtime"
+    paths = RuntimePaths(
+        root=runtime_root,
+        config_file=runtime_root / "config.json",
+        logs_dir=runtime_root / "logs",
+        tasks_dir=runtime_root / "tasks",
+        invoice_metadata_dir=runtime_root / "invoice_metadata",
+    )
+    paths.ensure_dirs()
+    service = InvoiceService(runtime_paths=paths)
+    config = InvoiceConfig(root_dir=str(invoice_root))
+
+    record = InvoiceRecord(
+        file_name="结账单.pdf",
+        file_path=str(folio),
+        file_hash="x",
+        doc_type="hotel_folio",
+    )
+    # A stale/forged preview row: not skipped, has a target path.
+    forged = InvoicePreviewItem(
+        file_name="结账单.pdf",
+        source_path=str(folio),
+        invoice_number="X",
+        invoice_date="2026-10-22",
+        amount=763.30,
+        content="",
+        duplicate_status="新发票",
+        target_path=str(invoice_root / "按月份归档" / "发票202610" / "结账单.pdf"),
+        report_path="",
+        month_key="202610",
+        status="complete",
+        remark="",
+        is_skipped=False,
+        skip_reason="",
+        record=record,
+    )
+    task = service.execute_preview([forged], config)
+    assert task.summary["moved"] == 0
+    assert task.summary["skipped"] == 1
+    assert task.items[0].error == "non_invoice:hotel_folio"
+    assert folio.exists() is True
+    assert not (invoice_root / "按月份归档").exists()

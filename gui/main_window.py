@@ -8,7 +8,10 @@ from typing import Any, Callable
 
 from PySide6.QtCore import Qt, QThreadPool, QTimer
 from PySide6.QtGui import QCloseEvent
-from PySide6.QtWidgets import QMainWindow, QMessageBox, QTabWidget, QWidget
+
+import shutil
+
+from PySide6.QtWidgets import QFileDialog, QMainWindow, QMessageBox, QTabWidget, QWidget
 
 from config.manager import ConfigManager
 from core.errors import OperationCancelled
@@ -16,13 +19,17 @@ from core.undo_manager import UndoManager
 from gui.dialogs.backfill_dialog import BackfillDialog
 from gui.dialogs.duplicate_dialog import DuplicateDialog
 from gui.dialogs.mail_account_dialog import MailAccountDialog
+from gui.dialogs.review_dialog import PdfPreviewDialog, ReviewDialog
 from gui.dialogs.settings_dialog import SettingsDialog
 from gui.pages.desktop_page import DesktopPage
 from gui.pages.invoice_page import InvoicePage
 from gui.widgets.status_bar import AppStatusBar
 from gui.workers.task_worker import TaskWorker
+from invoice.eligibility import _REASON_TEXT
+from mail.importer import mask_email
+from models.invoice import ArchiveCandidate, InvoicePreviewItem
 from services.desktop_service import DesktopService
-from services.invoice_service import InvoiceService
+from services.invoice_service import InvoiceService, plan_month
 from services.mail_service import MailService
 from utils.desktop import resolve_desktop_directory
 from utils.shell import open_in_file_explorer
@@ -55,6 +62,7 @@ class MainWindow(QMainWindow):
         self.desktop_preview_result: list | None = None
         self.invoice_scan_result: list | None = None
         self.invoice_preview_result: list | None = None
+        self.archive_candidates: list[ArchiveCandidate] = []
 
         self._thread_pool = QThreadPool.globalInstance()
         self._cancel_events: set[threading.Event] = set()
@@ -87,12 +95,29 @@ class MainWindow(QMainWindow):
 
         self.invoice_page.scan_button.clicked.connect(self.scan_invoices)
         self.invoice_page.preview_button.clicked.connect(self.preview_invoices)
+        self.invoice_page.evaluate_button.clicked.connect(self.evaluate_invoices)
         self.invoice_page.execute_button.clicked.connect(self.execute_invoices)
         self.invoice_page.duplicate_button.clicked.connect(self.show_duplicate_items)
+        self.invoice_page.review_button.clicked.connect(self.review_selected_invoice)
+        self.invoice_page.view_pdf_button.clicked.connect(self.view_selected_pdf)
+        self.invoice_page.import_button.clicked.connect(self.import_invoice_pdfs)
+        self.invoice_page.export_ledger_button.clicked.connect(self.export_monthly_ledger)
+        self.invoice_page.table_view.doubleClicked.connect(
+            lambda _index: self.review_selected_invoice()
+        )
+        self.invoice_page.mail_status_bar.sync_button.clicked.connect(
+            self.sync_mail_now
+        )
+        self.invoice_page.mail_status_bar.manage_button.clicked.connect(
+            self.open_mail_manager
+        )
         self.invoice_page.open_logs_button.clicked.connect(self.open_logs)
         self.invoice_page.open_report_button.clicked.connect(self.open_invoice_reports)
         self.invoice_page.open_month_button.clicked.connect(self.open_current_invoice_month)
         self.invoice_page.open_root_button.clicked.connect(self.open_invoice_root)
+        self.invoice_page.open_pending_button.clicked.connect(self.open_invoice_pending)
+        self.invoice_page.open_review_button.clicked.connect(self.open_invoice_review)
+        self.invoice_page.open_archive_button.clicked.connect(self.open_invoice_archive)
 
         panel = self.invoice_page.mail_panel
         panel.add_button.clicked.connect(self.add_mail_account)
@@ -115,6 +140,8 @@ class MainWindow(QMainWindow):
             str(self.desktop_root / self.config.general.archive_root_name)
         )
         self.invoice_page.invoice_root_path.set_value(self.config.invoice.root_dir)
+        self._update_invoice_dir_stats()
+        self._update_archive_stats()
 
     # ------------------------------------------------------------------
     # Background task plumbing
@@ -130,8 +157,13 @@ class MainWindow(QMainWindow):
         return [
             self.invoice_page.scan_button,
             self.invoice_page.preview_button,
+            self.invoice_page.evaluate_button,
             self.invoice_page.execute_button,
             self.invoice_page.duplicate_button,
+            self.invoice_page.review_button,
+            self.invoice_page.view_pdf_button,
+            self.invoice_page.import_button,
+            self.invoice_page.export_ledger_button,
         ]
 
     def _start_task(
@@ -196,7 +228,11 @@ class MainWindow(QMainWindow):
         else:
             message = f"任务失败: {exc}"
         self.app_status_bar.set_message(message)
-        QMessageBox.warning(self, "任务失败", message)
+        # Modal warnings on a hidden window can deadlock an event pump
+        # (e.g. a stale queued signal delivered after close()); keep the
+        # status-bar message but only open the dialog when visible.
+        if self.isVisible():
+            QMessageBox.warning(self, "任务失败", message)
 
     def _release_task(
         self, page: QWidget, cancel_event: threading.Event, worker: TaskWorker
@@ -226,6 +262,11 @@ class MainWindow(QMainWindow):
             cancel_event.set()
         if self._cancel_events:
             self._thread_pool.waitForDone(3000)
+        # Drop queued worker-completion signals so a stale finished
+        # event can never fire _fail_task/_finish_task after the window
+        # is gone (a queued warning would otherwise block the loop).
+        self._workers.clear()
+        self._cancel_events.clear()
         super().closeEvent(event)
 
     # ------------------------------------------------------------------
@@ -285,11 +326,27 @@ class MainWindow(QMainWindow):
                 counts[key] = counts.get(key, 0) + value
         snapshot = self.mail_service.status()
         self.invoice_page.mail_panel.update_status(snapshot, counts)
+        self.invoice_page.mail_status_bar.set_status(
+            [
+                a.label or mask_email(a.email)
+                for a in accounts
+                if a.enabled
+            ],
+            snapshot,
+            counts,
+        )
         # When a sync finishes with new downloads, refresh the pending
-        # invoice scan so downloaded PDFs appear immediately.
+        # invoice scan and re-evaluate so downloaded PDFs are classified
+        # and recognized automatically (evaluation never moves files).
         was_running = getattr(self, "_mail_was_running", False)
-        if was_running and not snapshot.running and snapshot.downloaded > 0:
+        if (
+            was_running
+            and not snapshot.running
+            and snapshot.downloaded > 0
+            and not self._closing
+        ):
             self.scan_invoices()
+            self.evaluate_invoices()
         self._mail_was_running = snapshot.running
         self._refresh_mail_accounts()
 
@@ -442,6 +499,11 @@ class MainWindow(QMainWindow):
         raw_dir.mkdir(parents=True, exist_ok=True)
         open_in_file_explorer(raw_dir)
 
+    def open_mail_manager(self) -> None:
+        """Show the full account-management dialog."""
+        self._refresh_mail_accounts()
+        self.invoice_page.mail_dialog.exec()
+
     def _auto_sync_toggled(self, checked: bool) -> None:
         self.mail_service.set_auto_sync(
             checked, self.invoice_page.mail_panel.interval_spin.value(),
@@ -488,6 +550,48 @@ class MainWindow(QMainWindow):
         root_dir.mkdir(parents=True, exist_ok=True)
         open_in_file_explorer(root_dir)
 
+    def _invoice_subdir(self, name: str) -> Path:
+        return Path(self.config.invoice.root_dir) / name
+
+    def open_invoice_pending(self) -> None:
+        path = self._invoice_subdir(self.config.invoice.pending_dir_name)
+        path.mkdir(parents=True, exist_ok=True)
+        open_in_file_explorer(path)
+
+    def open_invoice_review(self) -> None:
+        path = self._invoice_subdir("待审核附件")
+        path.mkdir(parents=True, exist_ok=True)
+        open_in_file_explorer(path)
+
+    def open_invoice_archive(self) -> None:
+        path = self._invoice_subdir(self.config.invoice.monthly_dir_name)
+        path.mkdir(parents=True, exist_ok=True)
+        open_in_file_explorer(path)
+
+    def _update_invoice_dir_stats(self) -> None:
+        """Show per-subdirectory file counts without opening Finder."""
+        root = Path(self.config.invoice.root_dir)
+        cfg = self.config.invoice
+
+        def count(path: Path, pattern: str = "*") -> int:
+            if not path.exists():
+                return 0
+            return sum(
+                1
+                for p in path.rglob(pattern)
+                if p.is_file() and not p.name.endswith(".source.json")
+            )
+
+        pending = count(self._invoice_subdir(cfg.pending_dir_name))
+        review = count(self._invoice_subdir("待审核附件"))
+        archive = count(self._invoice_subdir(cfg.monthly_dir_name))
+        reports = count(self._invoice_subdir(cfg.report_dir_name), "*.xlsx")
+        raw = count(self._invoice_subdir("邮件原始附件"))
+        self.invoice_page.dir_stats_label.setText(
+            f"目录统计: 待处理 {pending} | 待审核 {review} | "
+            f"已归档 {archive} | 报表 {reports} | 邮件原始附件 {raw}"
+        )
+
     def open_current_invoice_month(self) -> None:
         month_root = Path(self.config.invoice.root_dir) / self.config.invoice.monthly_dir_name
         month_root.mkdir(parents=True, exist_ok=True)
@@ -520,6 +624,17 @@ class MainWindow(QMainWindow):
     # Desktop organization actions
 
     def scan_desktop(self, on_done: Callable[[], None] | None = None) -> None:
+        # The scan path is editable on the desktop page — pick it up and
+        # persist it so organizing a subdirectory (or another folder) is
+        # a first-class flow, not a hardcoded whole-desktop scan.
+        typed = self.desktop_page.desktop_path.text().strip()
+        if typed:
+            chosen = Path(typed).expanduser()
+            if chosen != self.desktop_root:
+                self.desktop_root = chosen
+                self.config.general.desktop_path = str(chosen)
+                self.config_manager.save(self.config)
+                self._refresh_path_labels()
         if not self.desktop_root.exists():
             message = f"桌面路径不存在: {self.desktop_root}"
             QMessageBox.warning(self, "桌面路径不可用", message)
@@ -628,6 +743,7 @@ class MainWindow(QMainWindow):
             self.invoice_page.summary_cards.set_counts(
                 len(items), len(items), 0
             )
+            self._update_invoice_dir_stats()
             self.app_status_bar.set_message("发票扫描完成")
             if on_done is not None:
                 on_done()
@@ -678,6 +794,249 @@ class MainWindow(QMainWindow):
             )
             self.app_status_bar.set_message("发票处理执行完成")
             self.invoice_preview_result = None
+            self._update_archive_stats()
+            self._refresh_month_combo()
             self.scan_invoices()
 
         self._start_task(self.invoice_page, "正在执行发票归档…", work, apply)
+
+    # ------------------------------------------------------------------
+    # S3.3 archive admission, manual review, monthly ledger
+    # ------------------------------------------------------------------
+
+    def evaluate_invoices(
+        self, on_done: Callable[[], None] | None = None
+    ) -> None:
+        """Dry-run auto-archive admission for every pending PDF."""
+        config = self.config.invoice
+
+        def work(cancel_event: threading.Event):
+            return self.invoice_service.evaluate_pending(config, cancel_event)
+
+        def apply(candidates: list[ArchiveCandidate]) -> None:
+            self.archive_candidates = candidates
+            self.invoice_preview_result = [
+                self._candidate_to_preview(c) for c in candidates
+            ]
+            self.invoice_page.table_model.set_items(
+                self.invoice_preview_result
+            )
+            summary = self.invoice_service.review_summary(candidates)
+            blocked = len(candidates) - summary["eligible"]
+            self.invoice_page.summary_cards.set_counts(
+                len(candidates), summary["eligible"], blocked
+            )
+            self._update_archive_stats(candidates)
+            self._refresh_month_combo()
+            self.app_status_bar.set_message(
+                f"归档评估完成: 可自动归档 {summary['eligible']} · "
+                f"发票异常 {summary['needs_review']} · "
+                f"其他票据 {summary['other_voucher']} · "
+                f"待识别 {summary['unidentified']}"
+            )
+            if on_done is not None:
+                on_done()
+
+        self._start_task(self.invoice_page, "正在评估自动归档…", work, apply)
+
+    def _candidate_to_preview(self, candidate: ArchiveCandidate) -> InvoicePreviewItem:
+        record = candidate.record
+        month_key = plan_month(record.invoice_date)
+        target_path = ""
+        if candidate.eligible:
+            plan = self.invoice_service.archive_planner.plan(
+                record, candidate.duplicate_status, self.config.invoice
+            )
+            target_path = plan.target_path
+        reason_texts = [_REASON_TEXT.get(r, r) for r in candidate.reasons]
+        if candidate.eligible:
+            remark = "可自动归档"
+        elif record.doc_type == "e_invoice":
+            remark = "需审核: " + "、".join(reason_texts)
+        elif record.doc_type in self.invoice_service._OTHER_VOUCHER_TYPES:
+            remark = f"其他票据: {record.doc_type}"
+        else:
+            remark = f"待识别: {record.doc_type}"
+        return InvoicePreviewItem(
+            file_name=record.file_name,
+            source_path=candidate.source_path,
+            invoice_number=record.invoice_number,
+            invoice_date=record.invoice_date,
+            amount=record.amount,
+            content=record.invoice_content,
+            duplicate_status=candidate.duplicate_status,
+            target_path=target_path,
+            report_path="",
+            month_key=month_key,
+            status=record.recognition_status,
+            remark=remark,
+            is_skipped=not candidate.eligible,
+            skip_reason=";".join(candidate.reasons),
+            record=record,
+        )
+
+    def _selected_candidate(self) -> ArchiveCandidate | None:
+        index = self.invoice_page.table_view.currentIndex()
+        row = index.row() if index.isValid() else -1
+        if self.archive_candidates and 0 <= row < len(self.archive_candidates):
+            return self.archive_candidates[row]
+        preview_rows = self.invoice_preview_result or []
+        if 0 <= row < len(preview_rows) and preview_rows[row].record is not None:
+            preview = preview_rows[row]
+            return ArchiveCandidate(
+                record=preview.record,
+                source_path=preview.source_path,
+                duplicate_status=preview.duplicate_status,
+                duplicate_reason=preview.remark,
+                eligible=not preview.is_skipped,
+                reasons=preview.skip_reason.split(";") if preview.skip_reason else [],
+            )
+        return None
+
+    def review_selected_invoice(self) -> None:
+        candidate = self._selected_candidate()
+        if candidate is None:
+            QMessageBox.information(self, "提示", "请先评估归档并选择一行")
+            return
+        dialog = ReviewDialog(candidate, parent=self)
+        dialog.exec()
+        action = dialog.action
+        if action is None:
+            return
+        record = candidate.record
+        updates = dialog.collect_updates()
+        config = self.config.invoice
+        if action == "save":
+            self.invoice_service.save_manual_review(record, updates)
+            self.app_status_bar.set_message("审核修改已保存")
+            self.evaluate_invoices()
+        elif action == "defer":
+            self.invoice_service.set_review_state(record, "pending_review")
+            self.app_status_bar.set_message("已暂缓处理")
+            self.evaluate_invoices()
+        elif action == "archive":
+            self.invoice_service.save_manual_review(record, updates)
+
+            def work(_cancel_event):
+                return self.invoice_service.archive_confirmed(record, config)
+
+            def apply(target) -> None:
+                self.app_status_bar.set_message(f"已归档至 {target}")
+                self.evaluate_invoices()
+
+            self._start_task(self.invoice_page, "正在归档发票…", work, apply)
+
+    def view_selected_pdf(self) -> None:
+        candidate = self._selected_candidate()
+        if candidate is None:
+            QMessageBox.information(self, "提示", "请先选择一行")
+            return
+        PdfPreviewDialog(candidate.source_path, parent=self).exec()
+
+    def import_invoice_pdfs(self) -> None:
+        pending_dir = (
+            Path(self.config.invoice.root_dir)
+            / self.config.invoice.pending_dir_name
+        )
+        pending_dir.mkdir(parents=True, exist_ok=True)
+        files, _ = QFileDialog.getOpenFileNames(
+            self, "导入 PDF", str(pending_dir), "PDF 文件 (*.pdf)"
+        )
+        if not files:
+            return
+        imported = 0
+        for name in files:
+            source = Path(name)
+            target = pending_dir / source.name
+            if source == target:
+                continue
+            target = self._unique_path(target)
+            shutil.copy2(source, target)
+            imported += 1
+        self.app_status_bar.set_message(f"已导入 {imported} 份 PDF")
+        self.scan_invoices()
+
+    @staticmethod
+    def _unique_path(target: Path) -> Path:
+        if not target.exists():
+            return target
+        for idx in range(1, 1000):
+            candidate = target.with_name(f"{target.stem}_{idx}{target.suffix}")
+            if not candidate.exists():
+                return candidate
+        raise FileExistsError(f"无法生成不冲突的文件名: {target}")
+
+    def export_monthly_ledger(self) -> None:
+        month_key = self.invoice_page.month_combo.currentText().strip()
+        if not month_key:
+            QMessageBox.information(self, "提示", "请先选择月份")
+            return
+        config = self.config.invoice
+
+        def work(_cancel_event):
+            return self.invoice_service.export_monthly_ledger(
+                month_key, config
+            )
+
+        def apply(path) -> None:
+            self.app_status_bar.set_message(f"月度台账已导出: {path}")
+            open_in_file_explorer(Path(path).parent)
+
+        self._start_task(self.invoice_page, "正在导出月度台账…", work, apply)
+
+    def _refresh_month_combo(self) -> None:
+        combo = self.invoice_page.month_combo
+        current = combo.currentText()
+        months = set(self.invoice_service.archived_months())
+        for candidate in self.archive_candidates:
+            key = plan_month(candidate.record.invoice_date)
+            if key:
+                months.add(key)
+        combo.clear()
+        for month in sorted(months, reverse=True):
+            combo.addItem(month)
+        idx = combo.findText(current)
+        if idx >= 0:
+            combo.setCurrentIndex(idx)
+
+    def _update_archive_stats(
+        self, candidates: list[ArchiveCandidate] | None = None
+    ) -> None:
+        records = self.invoice_service.metadata_store.load_records()
+        archived = sum(
+            1
+            for r in records
+            if r.archive_status in ("auto_archived", "manually_archived")
+        )
+        review_dir = Path(self.config.invoice.root_dir) / "待审核附件"
+        other_attachments = (
+            sum(
+                1
+                for p in review_dir.rglob("*")
+                if p.is_file() and not p.name.endswith(".source.json")
+            )
+            if review_dir.exists()
+            else 0
+        )
+        if candidates is None:
+            needs_review = sum(
+                1 for r in records if r.review_status == "pending_review"
+            )
+            duplicates = 0
+            other_voucher = 0
+            unidentified = 0
+        else:
+            summary = self.invoice_service.review_summary(candidates)
+            needs_review = summary["needs_review"]
+            other_voucher = summary["other_voucher"]
+            unidentified = summary["unidentified"]
+            duplicates = sum(
+                1
+                for c in candidates
+                if c.duplicate_status in ("强重复", "疑似重复")
+            )
+        self.invoice_page.archive_stats_label.setText(
+            f"已归档 {archived} | 发票异常 {needs_review} | "
+            f"其他票据 {other_voucher} | 待识别 {unidentified} | "
+            f"重复 {duplicates} | 其他附件 {other_attachments}"
+        )

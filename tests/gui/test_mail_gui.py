@@ -239,6 +239,9 @@ def test_sync_finished_triggers_invoice_scan(tmp_path, monkeypatch) -> None:
     window = _window(tmp_path, monkeypatch)
     scans = []
     monkeypatch.setattr(window, "scan_invoices", lambda: scans.append(1))
+    # A real evaluate task would hit the fake invoice root and queue a
+    # failure slot that outlives the test window.
+    monkeypatch.setattr(window, "evaluate_invoices", lambda: None)
     window._mail_was_running = True
     snap = SyncStatusSnapshot(running=False, downloaded=3)
     monkeypatch.setattr(window.mail_service, "status", lambda: snap)
