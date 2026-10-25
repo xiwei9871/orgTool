@@ -21,7 +21,7 @@
     },
     "e_invoice_copied_to_pending": 0,
     "other_pdfs_copied_to_review": 20,
-    "needs_manual_review": 23,
+    "needs_manual_review": 20,
     "invoice_link_candidates": 31
   },
   "notes": {
@@ -29,7 +29,7 @@
     "pending_dir": "发票归档_待处理/ 保持 48 份（e_invoice 命中文件均已存在，内容哈希早退，无重复写入）",
     "review_dir": "发票管理/待审核附件/ 新建 20 份（8 行程凭证 + 9 结账单 + 1 图片型 + 2 unknown），含 .source.json 来源记录可反查 UID+part",
     "link_candidates": "31 封无 PDF 但含电子发票下载链接（Stripe invoice.stripe.com 链接，ChatGPT 扣款失败通知），仅记录未访问",
-    "needs_manual_review_detail": "review 目录 20 份 + unknown 2 份 + needs_ocr 1 份（方.pdf）",
+    "needs_manual_review_detail": "review 目录共 20 份：travel_voucher 8 + hotel_folio 9 + needs_ocr 1（方.pdf）+ unknown 2；分类合计 28+20=48 闭合",
     "unseen_integrity": "处理后重新 UID SEARCH UNSEEN：105 → 105，UID 集合逐项一致（unseen_same=true，added=0，removed=0）",
     "naming_bug_fixed": "首轮路由曾把 raw 文件名（u<uid>_a0_*）写入目标目录造成重名重复；已改为附件显示名并实测重跑幂等"
   },

@@ -17,7 +17,7 @@
 | 下载失败 | 0 |
 | 确认电子发票（e_invoice） | 28 |
 | 其他票据（凭证/结账单） | 17（8 travel_voucher + 9 hotel_folio） |
-| 需人工审核 | 23（review 20 + unknown 2 + needs_ocr 1） |
+| 需人工审核 | 20（review 目录已含 needs_ocr 1 + unknown 2） |
 | 发票下载链接候选 | 31 封（未访问） |
 
 **48 个 PDF 与首轮已下载集完全重合**——此前可见的 66 封正是未读尾部，「收取全部邮件」新暴露的历史邮件均为已读。两层去重（实体记录 + SHA-256）全部命中，无一重复下载。
@@ -53,3 +53,29 @@
 ## 六、测试
 
 新增 14 个测试（分类器 8 + 审计端到端 6）：UNSEEN 冻结集、只读无 STORE、去重不再下载、e_invoice→pending/其他→review 路由、链接候选记录不访问、UNSEEN 集合复验。全套 **202 passed, 1 skipped**。
+
+## 七、收尾复核（2026-10-25 第二轮）
+
+### 7.1 Document Gate（正式归档准入）
+
+- **问题**：`发票归档_待处理/` 48 份 PDF 中只有 28 份是 e_invoice；旧 `scan→preview→execute` 管线不判型，非发票会被旧 parser 判 complete 后入台账+Excel。
+- **修复**：`InvoiceService.build_preview` 入口加入文档分类闸门（`invoice/doc_classifier.classify_pdf_text`），`doc_type != e_invoice` → `is_skipped=True`、`skip_reason="non_invoice:<type>"`、`target_path=""`，预览表"备注"列显示文档类型。`InvoiceRecord` 新增 `doc_type` 字段。execute 阶段原样跳过，不产生 move/Excel。
+- **回归测试**：`test_document_gate_blocks_non_invoice_from_archive`——结账单文本被闸门拦截、不移动、归档目录不创建。
+- **迁移预览（未执行，不动真实文件）**：
+  1. pending 中 20 份非发票 PDF（9 结账单、8 行程凭证、方.pdf、2 unknown）已在 `待审核附件/` 有同名同内容副本；
+  2. 建议用户确认后把这 20 份从 pending 移入 `待审核附件/`（保留 `.source.json` 一并移动），pending 收敛为纯 e_invoice；
+  3. 闸门生效后即使这 20 份留在 pending，也无法进入"预览执行归档"的移动步骤——仅显示为 `non_invoice:*` 跳过项；
+  4. 本审计未移动/删除/覆盖任何真实文件。
+
+### 7.2 链接候选只读复核
+
+31 封 `invoice_link_candidate` 全部复核（仅本地清单数据，未访问任何链接）：
+
+| 类别 | 数量 | 判定依据 |
+|---|---|---|
+| 付款失败提醒 | **31** | 主题全部为 `ChatGPT - [ACTION REQUIRED] Your credit card payment was unsuccessful` |
+| 真实可下载发票通知 | 0 | 无"receipt/your invoice is ready"类主题 |
+| 无法判断 | 0 | 主题明确 |
+
+- 29 个去重 URL：**15 个 `invoice.stripe.com` 直连**（Stripe 账单门户，页面状态为待付款）+ **14 个 `mandrillapp.com` 跳转包装**（MailChimp 邮件追踪，指向同一批 Stripe 链接）。
+- 结论：全部为"付款未完成"提醒邮件；链接本身是 Stripe 官方域名，但指向的是**需要支付的账单页**，不是已结清发票。按要求未点击、未登录、未下载。如需处理应由用户在浏览器中自行登录 Stripe 核对。

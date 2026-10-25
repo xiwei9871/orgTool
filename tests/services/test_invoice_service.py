@@ -105,3 +105,46 @@ def test_invoice_service_skips_partial_recognition_items(tmp_path: Path) -> None
     assert preview[0].is_skipped is True
     assert preview[0].duplicate_status == "待确认"
     assert partial_pdf.exists() is True
+
+
+def test_document_gate_blocks_non_invoice_from_archive(tmp_path: Path) -> None:
+    """Non-invoice PDFs must be skipped by the gate, never moved/archived."""
+    invoice_root = tmp_path / "invoice_root"
+    pending_dir = invoice_root / "发票归档_待处理"
+    pending_dir.mkdir(parents=True)
+    folio = pending_dir / "结账单.pdf"
+    folio.write_text("fake-pdf", encoding="utf-8")
+
+    class _FolioReader:
+        def __init__(self, path: str) -> None:
+            self.pages = [
+                _Page(
+                    "北京某酒店 结账单 入住日期：2026-09-14 离店日期：2026-09-16 "
+                    "消费合计 763.30 付款合计 763.30 客人姓名 房间号 收银员"
+                )
+            ]
+
+    runtime_root = tmp_path / "runtime"
+    paths = RuntimePaths(
+        root=runtime_root,
+        config_file=runtime_root / "config.json",
+        logs_dir=runtime_root / "logs",
+        tasks_dir=runtime_root / "tasks",
+        invoice_metadata_dir=runtime_root / "invoice_metadata",
+    )
+    paths.ensure_dirs()
+    service = InvoiceService(
+        runtime_paths=paths,
+        pdf_extractor=PdfTextExtractor(reader_factory=_FolioReader),
+    )
+    config = InvoiceConfig(root_dir=str(invoice_root))
+
+    preview = service.build_preview(service.scan_pending(config), config)
+    assert preview[0].is_skipped is True
+    assert preview[0].skip_reason == "non_invoice:hotel_folio"
+    assert preview[0].target_path == ""
+    task = service.execute_preview(preview, config)
+    assert task.summary["moved"] == 0
+    assert folio.exists() is True
+    # nothing landed in the monthly archive
+    assert not (invoice_root / "按月份归档").exists()
