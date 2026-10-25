@@ -179,7 +179,16 @@ class InvoiceService:
 
         for preview in preview_items:
             raise_if_cancelled(cancel_event)
-            if preview.is_skipped:
+            # Execute-time gate: re-verify the document type instead of
+            # trusting the preview flag alone, so a non-invoice can never
+            # reach the ledger even if a preview row was built or
+            # tampered with before classification ran.
+            gated = (
+                preview.record is not None
+                and preview.record.doc_type
+                and preview.record.doc_type != DOC_E_INVOICE
+            )
+            if preview.is_skipped or gated:
                 skipped_count += 1
                 task.items.append(
                     TaskItemRecord(
@@ -188,7 +197,11 @@ class InvoiceService:
                         operation="skip",
                         item_type="invoice",
                         status="skipped",
-                        error=preview.skip_reason,
+                        error=(
+                            f"non_invoice:{preview.record.doc_type}"
+                            if gated and not preview.is_skipped
+                            else preview.skip_reason
+                        ),
                         extra={"duplicate_status": preview.duplicate_status},
                     )
                 )
