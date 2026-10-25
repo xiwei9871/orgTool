@@ -6,7 +6,7 @@
 ## 一、分支与代码状态
 
 - main `8123e3c` 含：S2 未读审计（`a447152`）、预览层 Document Gate（`c00b9fc`）、S3.1+S3.1a 字段识别（`efe399f`+`462a8eb`）。
-- **缺口发现并补齐**：`326695a`（execute_preview 执行层 doc_type 复核）当时未被合入——已 cherry-pick 至 `fix/s2-execute-gate`（新 commit `b1a62ea` 待合并）。当前 main 上执行层只检查 `is_skipped`；合并该 PR 后双层闸门齐备。
+- **缺口发现并补齐**：`326695a`（execute_preview 执行层 doc_type 复核）当时未被合入——已 cherry-pick 至 `fix/s2-execute-gate`（新 commit `bbadcff` 待合并）。当前 main 上执行层只检查 `is_skipped`；合并该 PR 后双层闸门齐备。
 
 ## 二、自动化测试
 
