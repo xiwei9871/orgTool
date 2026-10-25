@@ -79,3 +79,18 @@
 
 - 29 个去重 URL：**15 个 `invoice.stripe.com` 直连**（Stripe 账单门户，页面状态为待付款）+ **14 个 `mandrillapp.com` 跳转包装**（MailChimp 邮件追踪，指向同一批 Stripe 链接）。
 - 结论：全部为"付款未完成"提醒邮件；链接本身是 Stripe 官方域名，但指向的是**需要支付的账单页**，不是已结清发票。按要求未点击、未登录、未下载。如需处理应由用户在浏览器中自行登录 Stripe 核对。
+
+### 7.3 Document Gate 最终验收（2026-10-25 第三轮，commit `c00b9fc`+）
+
+真实待处理目录预览（48 份，只读，未移动任何文件）：
+
+| 分类 | 数量 | 结果 |
+|---|---|---|
+| `e_invoice` 放行 | 28 | 正常进入预览（含 dzfp×10、编号票×9、滴滴×3、飞猪报销凭证×5、幔壳×1） |
+| `non_invoice` 拦截 | 20 | 全部 `is_skipped` + `target_path=""`；travel_voucher 8、hotel_folio 9、needs_ocr 1、unknown 2 |
+
+关键证据：被拦截的 20 份中 **14 份旧 parser 判定为 `complete`**（ETC×2、天府通、滴滴报销单×3、结账单×8），若无闸门它们会被旧管线当作"识别完整的发票"移入月度归档并写入 Excel 台账——Document Gate 拦截生效。
+
+执行时校验：`execute_preview` 原来仅信任预览行的 `is_skipped` 标记；已补齐后端复核——若 `record.doc_type != e_invoice`，即便 `is_skipped=False`（陈旧/伪造预览行）也按 `non_invoice:<type>` 跳过，不产生 move/台账/Excel。回归测试 `test_execute_preview_rechecks_document_gate` 用伪造预览行验证 moved=0、文件原地保留、归档目录不创建。
+
+全套测试 **204 passed, 1 skipped**。
