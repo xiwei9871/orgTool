@@ -279,3 +279,23 @@ def test_review_summary_splits_buckets(tmp_path: Path) -> None:
         "other_voucher": 2,
         "unidentified": 2,
     }
+
+
+def test_reviewed_record_is_not_self_duplicate(tmp_path: Path) -> None:
+    """Regression: save_manual_review stores the record; the next dedup
+    must not flag it as a strong duplicate of itself (S3.3 first-archive
+    bug: 确认归档 failed with '强重复(matching file hash)')."""
+    service, config, pending = _service(tmp_path)
+    _make_pdf(pending / "a.pdf", "hello")
+    record = service.evaluate_pending(config)[0].record
+    service.save_manual_review(
+        record, {"invoice_number": "26512000000000000099", "amount": 88.0}
+    )
+    again = service.evaluate_pending(config)[0]
+    assert again.duplicate_status != "强重复"
+    # A DIFFERENT file with the same hash is still a real duplicate.
+    import shutil
+    shutil.copy2(pending / "a.pdf", pending / "copy.pdf")
+    dup = service.evaluate_pending(config)
+    by_name = {c.record.file_name: c for c in dup}
+    assert by_name["copy.pdf"].duplicate_status == "强重复"
