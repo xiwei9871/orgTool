@@ -654,7 +654,7 @@ class MainWindow(QMainWindow):
                 len(items), actionable, skipped
             )
             self.app_status_bar.set_message("桌面扫描完成")
-            if on_done is not None:
+            if callable(on_done):
                 on_done()
 
         self._start_task(self.desktop_page, "正在扫描桌面…", work, apply)
@@ -680,7 +680,7 @@ class MainWindow(QMainWindow):
                 len(items), actionable, skipped
             )
             self.app_status_bar.set_message("桌面预览已生成")
-            if on_done is not None:
+            if callable(on_done):
                 on_done()
 
         self._start_task(self.desktop_page, "正在生成桌面预览…", work, apply)
@@ -745,7 +745,7 @@ class MainWindow(QMainWindow):
             )
             self._update_invoice_dir_stats()
             self.app_status_bar.set_message("发票扫描完成")
-            if on_done is not None:
+            if callable(on_done):
                 on_done()
 
         self._start_task(self.invoice_page, "正在扫描待处理发票…", work, apply)
@@ -770,7 +770,7 @@ class MainWindow(QMainWindow):
                 len(items), actionable, skipped
             )
             self.app_status_bar.set_message("发票预览已生成")
-            if on_done is not None:
+            if callable(on_done):
                 on_done()
 
         self._start_task(self.invoice_page, "正在生成发票预览…", work, apply)
@@ -834,7 +834,7 @@ class MainWindow(QMainWindow):
                 f"其他票据 {summary['other_voucher']} · "
                 f"待识别 {summary['unidentified']}"
             )
-            if on_done is not None:
+            if callable(on_done):
                 on_done()
 
         self._start_task(self.invoice_page, "正在评估自动归档…", work, apply)
