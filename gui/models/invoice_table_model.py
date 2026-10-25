@@ -15,6 +15,8 @@ INVOICE_HEADERS = [
     "查重结果",
     "归档目标",
     "状态",
+    "购买方",
+    "税额",
     "备注",
 ]
 
@@ -45,6 +47,12 @@ class InvoiceTableModel(QAbstractTableModel):
             item.duplicate_status,
             item.target_path,
             item.status,
+            getattr(item.record, "buyer", "") if item.record else "",
+            (
+                ""
+                if item.record is None or item.record.tax_amount is None
+                else str(item.record.tax_amount)
+            ),
             item.remark,
         ]
         return values[index.column()]

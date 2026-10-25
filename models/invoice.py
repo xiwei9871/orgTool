@@ -17,8 +17,12 @@ class InvoiceRecord:
     invoice_content: str = ""
     amount: float | None = None
     seller: str = ""
+    buyer: str = ""
+    tax_amount: float | None = None
     source_type: str = "pdf"
     doc_type: str = ""
+    field_sources: dict = field(default_factory=dict)
+    review_fields: list[str] = field(default_factory=list)
     recognition_status: str = "pending"
     date_source: str = ""
     notes: list[str] = field(default_factory=list)

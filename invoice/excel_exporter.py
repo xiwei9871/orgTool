@@ -21,6 +21,8 @@ HEADERS = [
     "识别状态",
     "日期来源",
     "备注",
+    "税额",
+    "购买方",
 ]
 
 
@@ -55,6 +57,16 @@ class InvoiceExcelExporter:
             sheet.cell(row=row_index, column=10, value=record.recognition_status)
             sheet.cell(row=row_index, column=11, value=record.date_source)
             sheet.cell(row=row_index, column=12, value="")
+            sheet.cell(
+                row=row_index,
+                column=13,
+                value=(
+                    float(record.tax_amount)
+                    if record.tax_amount is not None
+                    else ""
+                ),
+            )
+            sheet.cell(row=row_index, column=14, value=record.buyer)
 
         summary_row = len(records) + 3
         sheet.cell(row=summary_row, column=1, value="发票总数")
