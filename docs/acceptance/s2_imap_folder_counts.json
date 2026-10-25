@@ -1,0 +1,78 @@
+{
+  "audit": "s2_imap_coverage_reaudit",
+  "date": "2026-10-25",
+  "account": "chenduanxiwei@163.com",
+  "method": "readonly IMAP: SELECT(readonly) + STATUS + UID SEARCH ALL + header/bodystructure on 150-msg uniform sample; no downloads, no cursor/DB/server changes",
+  "inbox": {
+    "exists": 10251,
+    "unseen": 105,
+    "recent": 105,
+    "uidvalidity": 1,
+    "uid_search_all_count": 10251,
+    "uid_min": 1142274317,
+    "uid_max": 1320870629,
+    "oldest_message": {
+      "uid": 1142274317,
+      "date": "Mon, 13 Mar 2006 18:25:12 -0000",
+      "subject_head": "SFU Application # 00394928"
+    },
+    "newest_message": {
+      "uid": 1320870629,
+      "date": "Sun, 25 Oct 2026 12:56:41 +0800",
+      "subject_head": "【安全提醒】邮箱异国登录通知"
+    }
+  },
+  "folders": [
+    { "name": "INBOX", "exists": 10251, "unseen": 105, "recent": 105 },
+    { "name": "草稿箱", "exists": 32, "unseen": 1, "recent": 1 },
+    { "name": "已发送", "exists": 321, "unseen": 0, "recent": 0 },
+    { "name": "已删除", "exists": 0, "unseen": 0, "recent": 0 },
+    { "name": "垃圾邮件", "exists": 3, "unseen": 3, "recent": 3 },
+    { "name": "病毒文件夹", "exists": 9, "unseen": 2, "recent": 2 },
+    { "name": "广告邮件", "exists": 1, "unseen": 1, "recent": 1 },
+    { "name": "订阅邮件", "exists": 0, "unseen": 0, "recent": 0 },
+    { "name": "学校", "exists": 5, "unseen": 0, "recent": 0 },
+    { "name": "朋友", "exists": 21, "unseen": 0, "recent": 0 },
+    { "name": "Notes", "exists": 13, "unseen": 0, "recent": 0 }
+  ],
+  "totals": { "exists": 10656, "unseen": 112 },
+  "baseline_comparison": {
+    "inbox_exists": { "before": 66, "now": 10251, "delta": 10185 },
+    "all_folders_exists": { "before": 83, "now": 10656, "delta": 10573 },
+    "imap_unseen_total": { "before": 70, "now": 112, "delta": 42 },
+    "inbox_unseen": { "before": 66, "now": 105, "delta": 39 },
+    "webmail_unread": { "before": "104→105", "imap_inbox_unseen": 105, "reconciled": true }
+  },
+  "newly_exposed_history": {
+    "messages_older_than_previous_min_uid_1320870563": 10185,
+    "date_range": "2006-03-13 .. 2026-10-25",
+    "sample": {
+      "size": 150,
+      "year_histogram": {
+        "2006": 3, "2007": 8, "2008": 11, "2009": 17, "2010": 11,
+        "2011": 12, "2012": 21, "2013": 26, "2014": 15, "2015": 1,
+        "2016": 3, "2018": 1, "2019": 3, "2020": 2, "2021": 1,
+        "2022": 1, "2023": 4, "2024": 2, "2025": 4, "2026": 4
+      },
+      "messages_with_pdf_candidates": 14,
+      "pdf_parts_total": 22,
+      "estimated_messages_with_pdf_full_inbox": 957,
+      "pdf_examples": [
+        "Math225SampleFinalExam.pdf (2011)",
+        "Fundamentals_of_Rock_Mechanics.pdf (2013)",
+        "sciencedirect papers x5 (2013)",
+        "1112305712.pdf (2020)",
+        "210901340100600_044032100111_67790209.pdf (2021, 发票号码格式)",
+        "051002100511_45074997.pdf (2023, 发票号码格式)",
+        "invoice.pdf + trip.pdf (2025)"
+      ],
+      "fetch_errors": 0
+    },
+    "note": "未下载任何历史附件；PDF 判定仅基于 BODYSTRUCTURE 结构，实际内容未取"
+  },
+  "open_items": [
+    "全账户 IMAP 未读 112 vs 网页版 ~105：其余 7 封未读散布于 草稿箱1/垃圾3/病毒2/广告1，网页版未读口径是否计入这些文件夹 UNKNOWN",
+    "订阅邮件文件夹恒为空，网页端订阅聚合仍不通过 IMAP 暴露",
+    "增量游标 last_seen_uid=1320870628 仍是正确的——新暴露的是 OLD uid，不影响增量；历史补抓需显式触发才能覆盖 2006-2026 区段"
+  ]
+}
