@@ -107,6 +107,9 @@ class MainWindow(QMainWindow):
         self.invoice_page.evaluate_button.clicked.connect(self.evaluate_invoices)
         self.invoice_page.execute_button.clicked.connect(self.execute_invoices)
         self.invoice_page.duplicate_button.clicked.connect(self.show_duplicate_items)
+        self.invoice_page.archive_non_invoice_button.clicked.connect(
+            self.archive_non_invoices
+        )
         self.invoice_page.review_button.clicked.connect(self.review_selected_invoice)
         self.invoice_page.view_pdf_button.clicked.connect(self.view_selected_pdf)
         self.invoice_page.import_button.clicked.connect(self.import_invoice_pdfs)
@@ -169,6 +172,7 @@ class MainWindow(QMainWindow):
             self.invoice_page.evaluate_button,
             self.invoice_page.execute_button,
             self.invoice_page.duplicate_button,
+            self.invoice_page.archive_non_invoice_button,
             self.invoice_page.review_button,
             self.invoice_page.view_pdf_button,
             self.invoice_page.import_button,
@@ -1052,3 +1056,46 @@ class MainWindow(QMainWindow):
             f"其他票据 {other_voucher} | 待识别 {unidentified} | "
             f"重复 {duplicates} | 其他附件 {other_attachments}"
         )
+
+    def archive_non_invoices(self) -> None:
+        """Move identified non-invoice PDFs into the review dir."""
+        if not self.archive_candidates:
+            QMessageBox.information(
+                self, "提示", "请先点击「评估自动归档」生成候选列表"
+            )
+            return
+        movable = sum(
+            1
+            for c in self.archive_candidates
+            if c.record.doc_type
+            in self.invoice_service._NON_INVOICE_MOVABLE_TYPES
+        )
+        if movable == 0:
+            QMessageBox.information(self, "提示", "没有可归档的非发票附件")
+            return
+        reply = QMessageBox.question(
+            self,
+            "归档非发票",
+            f"将把 {movable} 份非发票附件移入「待审核附件」目录。\n"
+            "needs_ocr 文件保留在待处理中。继续？",
+        )
+        if reply != QMessageBox.Yes:
+            return
+        candidates = list(self.archive_candidates)
+        config = self.config.invoice
+
+        def work(cancel_event):
+            return self.invoice_service.archive_non_invoices(
+                candidates, config, cancel_event
+            )
+
+        def apply(result) -> None:
+            self.app_status_bar.set_message(
+                f"非发票归档完成: 移入 {len(result['moved'])} · "
+                f"合并重复 {len(result['merged'])} · "
+                f"保留待处理 {len(result['kept'])}"
+            )
+            self._update_invoice_dir_stats()
+            self.evaluate_invoices()
+
+        self._start_task(self.invoice_page, "正在归档非发票附件…", work, apply)

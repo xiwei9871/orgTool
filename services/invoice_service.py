@@ -530,6 +530,65 @@ class InvoiceService:
         }
 
 
+    _NON_INVOICE_MOVABLE_TYPES = {
+        "travel_voucher", "hotel_folio", "other_pdf", "unknown",
+    }
+
+    def archive_non_invoices(
+        self,
+        candidates: list[ArchiveCandidate],
+        config: InvoiceConfig,
+        cancel_event: threading.Event | None = None,
+    ) -> dict:
+        """Move identified non-invoice PDFs out of pending into the
+        review/non-invoice attachment directory.
+
+        ``needs_ocr`` files stay pending — they still need OCR/manual
+        handling.  Name conflicts are resolved by content: an identical
+        (same-hash) file already in the review dir means the pending
+        copy is redundant and is removed; a different file with the
+        same name gets a numeric suffix.  ``.source.json`` sidecars
+        move with their PDF.  Returns per-file results.
+        """
+        review_dir = Path(config.root_dir) / "待审核附件"
+        review_dir.mkdir(parents=True, exist_ok=True)
+        moved: list[str] = []
+        merged: list[str] = []
+        kept: list[str] = []
+
+        for candidate in candidates:
+            raise_if_cancelled(cancel_event)
+            record = candidate.record
+            if record.doc_type not in self._NON_INVOICE_MOVABLE_TYPES:
+                kept.append(candidate.source_path)
+                continue
+            source = Path(candidate.source_path)
+            target = review_dir / source.name
+            if target.exists():
+                same = (
+                    target.stat().st_size == source.stat().st_size
+                    and compute_file_hash(target, config.hash_algorithm)
+                    == compute_file_hash(source, config.hash_algorithm)
+                )
+                if same:
+                    source.unlink()
+                    Path(str(source) + ".source.json").unlink(missing_ok=True)
+                    merged.append(str(target))
+                    continue
+                for idx in range(1, 1000):
+                    alt = review_dir / f"{source.stem}_{idx}{source.suffix}"
+                    if not alt.exists():
+                        target = alt
+                        break
+            shutil.move(str(source), str(target))
+            sidecar = Path(str(source) + ".source.json")
+            if sidecar.exists():
+                shutil.move(str(sidecar), str(target) + ".source.json")
+            moved.append(str(target))
+
+        return {"moved": moved, "merged": merged, "kept": kept}
+
+
 def plan_month(invoice_date: str) -> str:
     """``YYYY-MM-DD`` -> ``YYYYMM`` (empty for missing/invalid dates)."""
     try:
@@ -539,3 +598,4 @@ def plan_month(invoice_date: str) -> str:
     except (AttributeError, IndexError):
         pass
     return ""
+

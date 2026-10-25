@@ -299,3 +299,74 @@ def test_reviewed_record_is_not_self_duplicate(tmp_path: Path) -> None:
     dup = service.evaluate_pending(config)
     by_name = {c.record.file_name: c for c in dup}
     assert by_name["copy.pdf"].duplicate_status == "强重复"
+
+
+def test_archive_non_invoices_moves_and_keeps(tmp_path: Path) -> None:
+    service, config, pending = _service(tmp_path)
+
+    def cand(name: str, doc_type: str) -> ArchiveCandidate:
+        return ArchiveCandidate(
+            record=_record(doc_type=doc_type, file_name=name,
+                           file_path=str(pending / name)),
+            source_path=str(pending / name),
+            duplicate_status="新发票", duplicate_reason="",
+            eligible=False, reasons=["not_e_invoice"],
+        )
+
+    (pending / "folio.pdf").write_bytes(b"A" * 10)
+    (pending / "rental.pdf").write_bytes(b"B" * 10)
+    (pending / "scan.pdf").write_bytes(b"C" * 10)
+
+    result = service.archive_non_invoices(
+        [cand("folio.pdf", "hotel_folio"),
+         cand("rental.pdf", "unknown"),
+         cand("scan.pdf", "needs_ocr")],
+        config,
+    )
+    review = Path(config.root_dir) / "待审核附件"
+    assert (review / "folio.pdf").exists()
+    assert (review / "rental.pdf").exists()
+    assert (pending / "scan.pdf").exists()
+    assert not (pending / "folio.pdf").exists()
+    assert len(result["moved"]) == 2
+    assert len(result["kept"]) == 1
+
+
+def test_archive_non_invoices_merges_same_hash(tmp_path: Path) -> None:
+    service, config, pending = _service(tmp_path)
+    content = b"SAME" * 10
+    (pending / "dup.pdf").write_bytes(content)
+    review = Path(config.root_dir) / "待审核附件"
+    review.mkdir(parents=True)
+    (review / "dup.pdf").write_bytes(content)
+
+    cand = ArchiveCandidate(
+        record=_record(doc_type="travel_voucher", file_name="dup.pdf",
+                       file_path=str(pending / "dup.pdf")),
+        source_path=str(pending / "dup.pdf"),
+        duplicate_status="新发票", duplicate_reason="",
+        eligible=False, reasons=["not_e_invoice"],
+    )
+    result = service.archive_non_invoices([cand], config)
+    assert len(result["merged"]) == 1
+    assert not (pending / "dup.pdf").exists()
+    assert len(list(review.glob("dup*.pdf"))) == 1
+
+
+def test_archive_non_invoices_suffixes_diff_content(tmp_path: Path) -> None:
+    service, config, pending = _service(tmp_path)
+    (pending / "same.pdf").write_bytes(b"NEW")
+    review = Path(config.root_dir) / "待审核附件"
+    review.mkdir(parents=True)
+    (review / "same.pdf").write_bytes(b"OLD")
+
+    cand = ArchiveCandidate(
+        record=_record(doc_type="hotel_folio", file_name="same.pdf",
+                       file_path=str(pending / "same.pdf")),
+        source_path=str(pending / "same.pdf"),
+        duplicate_status="新发票", duplicate_reason="",
+        eligible=False, reasons=["not_e_invoice"],
+    )
+    service.archive_non_invoices([cand], config)
+    names = sorted(p.name for p in review.iterdir())
+    assert names == ["same.pdf", "same_1.pdf"]
