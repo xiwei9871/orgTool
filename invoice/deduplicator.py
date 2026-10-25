@@ -18,6 +18,17 @@ class InvoiceDeduplicator:
             return DuplicateCheckResult("待确认", "missing invoice number or amount")
 
         for existing in self.metadata_store.load_records():
+            # A stored record pointing at the very same file (same path
+            # AND same hash) is this invoice itself — e.g. written by
+            # save_manual_review before archive_confirmed runs.  Skipping
+            # it prevents self-collision; a different file sharing the
+            # hash is still a real strong duplicate.
+            if (
+                existing.file_hash
+                and existing.file_hash == record.file_hash
+                and existing.file_path == record.file_path
+            ):
+                continue
             if existing.file_hash and existing.file_hash == record.file_hash:
                 return DuplicateCheckResult("强重复", "matching file hash", existing.file_path)
             if (
