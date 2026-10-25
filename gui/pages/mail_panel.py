@@ -47,6 +47,7 @@ class MailSyncPanel(QGroupBox):
         self.test_button = QPushButton("测试连接")
         self.backfill_button = QPushButton("历史补抓")
         self.sync_now_button = QPushButton("立即同步")
+        self.retry_button = QPushButton("重试失败")
         self.pause_button = QPushButton("暂停")
         self.resume_button = QPushButton("恢复")
         self.cancel_button = QPushButton("取消")
@@ -60,6 +61,7 @@ class MailSyncPanel(QGroupBox):
             self.test_button,
             self.backfill_button,
             self.sync_now_button,
+            self.retry_button,
             self.pause_button,
             self.resume_button,
             self.cancel_button,
@@ -74,9 +76,12 @@ class MailSyncPanel(QGroupBox):
         self.progress_bar.setFormat("空闲")
 
         self.stats_label = QLabel(
-            "扫描: 0 | 发现附件: 0 | 已下载: 0 | 重复跳过: 0 | 失败: 0"
+            "本轮: 扫描 0 · 发现附件 0 · 下载 0 · 重复跳过 0 · 失败 0\n"
+            "累计: 已下载 0 · 待重试 0 · 服务器: —"
         )
+        self.stats_label.setWordWrap(True)
         self.last_error_label = QLabel("")
+        self.last_error_label.setWordWrap(True)
 
         self.auto_sync_check = QCheckBox("应用运行期间自动同步")
         self.auto_sync_check.setChecked(True)
@@ -129,12 +134,21 @@ class MailSyncPanel(QGroupBox):
         return item.data(ACCOUNT_COL_ID) if item else None
 
     def update_status(self, snapshot: SyncStatusSnapshot, counts: dict[str, int]) -> None:
-        scanned = snapshot.processed
-        found = counts.get("done", 0) + counts.get("skipped_duplicate", 0) + counts.get("failed", 0) + counts.get("pending", 0) + counts.get("downloading", 0)
-        downloaded = snapshot.downloaded
+        pending_retry = counts.get("failed", 0) + counts.get("server_unavailable", 0)
+        if snapshot.folder_exists >= 0:
+            server_text = f"{snapshot.folder_exists} 封"
+            if snapshot.folder_unseen >= 0:
+                server_text += f"（未读 {snapshot.folder_unseen}）"
+            if snapshot.folder_name:
+                server_text = f"{snapshot.folder_name}: {server_text}"
+        else:
+            server_text = "—"
         self.stats_label.setText(
-            f"扫描: {scanned} | 发现附件: {found} | 已下载: {downloaded} | "
-            f"重复跳过: {snapshot.skipped_duplicate} | 失败: {snapshot.failed}"
+            f"本轮: 扫描 {snapshot.processed}/{snapshot.total} · "
+            f"发现附件 {snapshot.found} · 下载 {snapshot.downloaded} · "
+            f"重复跳过 {snapshot.skipped_duplicate} · 失败 {snapshot.failed}\n"
+            f"累计: 已下载 {counts.get('done', 0)} · "
+            f"待重试 {pending_retry} · 服务器 {server_text}"
         )
         if snapshot.running:
             if snapshot.total > 0:

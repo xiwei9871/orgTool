@@ -23,6 +23,14 @@ class FakeAttachment:
     data: bytes
     inline: bool = False
     declared_size: int | None = None  # lie about size if desired
+    encoding: str = "BASE64"  # Content-Transfer-Encoding, like real NetEase
+    literal_filename: bool = False  # emit {n} literals instead of quoted names
+
+    def wire_data(self) -> bytes:
+        """Body bytes as the server transmits them for BODY[n]."""
+        if self.encoding.upper() == "BASE64":
+            return base64.b64encode(self.data)
+        return self.data
 
 
 @dataclass
@@ -68,28 +76,49 @@ class FakeMessage:
         lines += f"--{boundary}--\r\n"
         return lines.encode("utf-8")
 
-    def bodystructure(self) -> str:
-        parts = [
-            '("TEXT" "PLAIN" ("CHARSET" "UTF-8") NIL NIL "7BIT" '
-            f"{len(self.body_text)} {self.body_text.count(chr(10)) + 1} "
-            'NIL NIL NIL NIL)'
+    def bodystructure(self) -> bytes:
+        parts: list[bytes] = [
+            (
+                '("TEXT" "PLAIN" ("CHARSET" "UTF-8") NIL NIL "7BIT" '
+                f"{len(self.body_text)} {self.body_text.count(chr(10)) + 1} "
+                'NIL NIL NIL NIL)'
+            ).encode()
         ]
         for attachment in self.attachments:
             declared = (
                 attachment.declared_size
                 if attachment.declared_size is not None
-                else len(base64.b64encode(attachment.data))
+                else len(attachment.wire_data())
             )
             disp = "INLINE" if attachment.inline else "ATTACHMENT"
             maintype, _, subtype = attachment.content_type.partition("/")
+            if attachment.literal_filename:
+                # NetEase sends non-ASCII parameter values as IMAP literals:
+                # ("NAME" {28}\r\n<bytes>) — reproduced to exercise the
+                # literal-aware sexp parser.
+                raw = attachment.filename.encode("utf-8")
+                name_param = f'("NAME" {{{len(raw)}}}\r\n'.encode() + raw + b")"
+                file_param = f'("FILENAME" {{{len(raw)}}}\r\n'.encode() + raw + b")"
+                parts.append(
+                    f'("{maintype.upper()}" "{subtype.upper()}" '.encode()
+                    + name_param
+                    + f' NIL NIL "{attachment.encoding.upper()}" {declared} NIL '.encode()
+                    + f'("{disp}" '.encode()
+                    + file_param
+                    + b") NIL NIL)"
+                )
+                continue
             parts.append(
-                f'("{maintype.upper()}" "{subtype.upper()}" '
-                f'("NAME" "{attachment.filename}") NIL NIL "BASE64" {declared} NIL '
-                f'("{disp}" ("FILENAME" "{attachment.filename}")) NIL NIL)'
+                (
+                    f'("{maintype.upper()}" "{subtype.upper()}" '
+                    f'("NAME" "{attachment.filename}") NIL NIL '
+                    f'"{attachment.encoding.upper()}" {declared} NIL '
+                    f'("{disp}" ("FILENAME" "{attachment.filename}")) NIL NIL)'
+                ).encode()
             )
         if not self.attachments:
             return parts[0]
-        return "(" + "".join(parts) + ' "MIXED" NIL NIL NIL)'
+        return b"(" + b"".join(parts) + b' "MIXED" NIL NIL NIL)'
 
 
 @dataclass
@@ -97,6 +126,7 @@ class FakeFolder:
     name: str
     uidvalidity: int = 1001
     messages: list[FakeMessage] = field(default_factory=list)
+    unseen: int = 0
 
     def by_uid(self, uid: int) -> FakeMessage | None:
         for message in self.messages:
@@ -265,6 +295,19 @@ class FakeImapServer:
                     f"* OK [UIDVALIDITY {folder.uidvalidity}] valid\r\n"
                     f"{tag} OK [READ-ONLY] SELECT done\r\n".encode()
                 )
+        elif command == "STATUS":
+            name = decode_imap_utf7(args.split(" ")[0].strip('"'))
+            folder = self.folders.get(name)
+            if folder is None:
+                conn.sendall(f"{tag} NO no such folder\r\n".encode())
+            else:
+                conn.sendall(
+                    f'* STATUS "{encode_imap_utf7(folder.name)}" '
+                    f"(MESSAGES {len(folder.messages)} UNSEEN {folder.unseen} RECENT 0)\r\n".encode(
+                        "utf-8"
+                    )
+                )
+                conn.sendall(f"{tag} OK STATUS done\r\n".encode())
         elif command == "CLOSE":
             state["folder"] = None
             conn.sendall(f"{tag} OK CLOSE\r\n".encode())
@@ -315,7 +358,7 @@ class FakeImapServer:
             return
         upper = spec.upper()
         if "BODYSTRUCTURE" in upper:
-            payload = message.bodystructure().encode("utf-8")
+            payload = message.bodystructure()
             conn.sendall(
                 b"* 1 FETCH (UID "
                 + str(uid).encode()
@@ -351,7 +394,7 @@ class FakeImapServer:
             elif index - 2 < len(attachments):
                 self._send_literal(
                     tag, conn, uid, f"BODY[{part_number}]",
-                    attachments[index - 2].data,
+                    attachments[index - 2].wire_data(),
                 )
             else:
                 conn.sendall(f"{tag} NO no such part\r\n".encode())

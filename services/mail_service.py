@@ -11,6 +11,7 @@ from pathlib import Path
 from typing import Callable
 
 from core.errors import OperationCancelled
+from mail.attachment import looks_like_pdf_bytes
 from mail.credentials import CredentialStore, KeyringCredentialStore
 from mail.errors import MailErrorCode, MailSyncError
 from mail.imap_client import ImapClient
@@ -381,6 +382,11 @@ class MailService:
             client_factory=self._client_factory,
             secret_getter=lambda aid: self.credentials.get_secret(aid),
         )
+        repaired = self._repair_invalid_downloads(account.account_id)
+        if repaired:
+            self.logger.info(
+                "marked %s corrupt downloads for re-download", repaired
+            )
         try:
             engine.run(account, job.mode, job.since, job.until)
             self._finish_account(
@@ -422,6 +428,40 @@ class MailService:
                 self._last_snapshot = job.snapshot
                 if job in self._jobs:
                     self._jobs.remove(job)
+
+    def _repair_invalid_downloads(self, account_id: str) -> int:
+        """Mark 'done' records whose stored file is not a real PDF for retry.
+
+        Earlier builds wrote base64-encoded bodies and BODYSTRUCTURE literal
+        fragments (e.g. ``{266}``) as filenames — the files exist but are not
+        usable PDFs, so they must be re-downloaded instead of being trusted
+        as done. Original files are left untouched on disk.
+        """
+        repaired = 0
+        for record in self.store.done_records(account_id):
+            if not record.local_path:
+                continue
+            path = Path(record.local_path)
+            if not path.is_file():
+                continue
+            try:
+                data = path.read_bytes()
+            except OSError:
+                continue
+            if looks_like_pdf_bytes(data):
+                continue
+            is_base64_pdf = data.lstrip().startswith(b"JVBER")
+            is_named_pdf = record.attachment_name.casefold().endswith(".pdf")
+            if not (is_base64_pdf or is_named_pdf):
+                continue
+            self.store.mark_attachment(
+                record.id,
+                "failed",
+                last_error="本地文件内容无效，待重新下载",
+                last_error_code=MailErrorCode.INVALID_PDF,
+            )
+            repaired += 1
+        return repaired
 
     def _finish_account(self, account_id: str, **fields) -> None:
         config = self._config()

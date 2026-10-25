@@ -179,9 +179,33 @@ def extract_attachments(bodystructure: object) -> list[AttachmentPart]:
                 content_type=content_type,
                 size=size,
                 is_inline_with_name=(disposition == "INLINE" and bool(filename)),
+                encoding=str(node[5]).upper() if len(node) > 5 and node[5] else "",
             )
         )
     return attachments
+
+
+def decode_transfer_body(data: bytes, encoding: str) -> bytes:
+    """Decode a MIME part body per its Content-Transfer-Encoding.
+
+    IMAP ``BODY[n]`` returns the part as stored — NetEase serves BASE64
+    bodies without decoding them. Decoding failures fall back to the raw
+    bytes so callers can still validate content.
+    """
+    enc = (encoding or "").upper()
+    if enc == "BASE64":
+        try:
+            import base64
+
+            cleaned = re.sub(rb"[^A-Za-z0-9+/=]", b"", data)
+            return base64.b64decode(cleaned, validate=False)
+        except Exception:  # noqa: BLE001
+            return data
+    if enc in {"QUOTED-PRINTABLE", "QUOTEDPRINTABLE"}:
+        import quopri
+
+        return quopri.decodestring(data)
+    return data
 
 
 def looks_like_pdf_bytes(data: bytes) -> bool:

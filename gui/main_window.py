@@ -101,6 +101,7 @@ class MainWindow(QMainWindow):
         panel.test_button.clicked.connect(self.test_mail_connection)
         panel.backfill_button.clicked.connect(self.start_mail_backfill)
         panel.sync_now_button.clicked.connect(self.sync_mail_now)
+        panel.retry_button.clicked.connect(self.sync_mail_now)
         panel.pause_button.clicked.connect(self.mail_service.pause)
         panel.resume_button.clicked.connect(self.mail_service.resume)
         panel.cancel_button.clicked.connect(self.mail_service.cancel)

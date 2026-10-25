@@ -45,6 +45,8 @@ class SelectResult:
 
     exists: int
     uidvalidity: int
+    unseen: int = -1
+    recent: int = -1
 
 
 def format_imap_date(value: date) -> str:
@@ -179,14 +181,38 @@ class ImapClient:
             raise _select_error(name, self.id_supported, None)
         self._selected = name
         exists = int(data[0]) if data and data[0].isdigit() else 0
-        uidvalidity = 0
-        raw_validity = conn.untagged_responses.get("UIDVALIDITY", [])
-        if raw_validity:
-            try:
-                uidvalidity = int(raw_validity[0])
-            except (TypeError, ValueError):
-                uidvalidity = 0
+        uidvalidity = _response_int(conn.untagged_responses.get("UIDVALIDITY"))
         return SelectResult(exists=exists, uidvalidity=uidvalidity)
+
+    def folder_status(self, name: str) -> dict[str, int]:
+        """Return STATUS counters (MESSAGES/UNSEEN/RECENT) for a folder.
+
+        The UNSEEN untagged response during SELECT is a sequence number,
+        not a count — STATUS is the reliable way to get unread totals.
+        -1 means the server did not provide the value.
+        """
+        conn = self._require_conn()
+        encoded = encode_imap_utf7(name)
+        mailbox = f'"{encoded}"' if " " in encoded else encoded
+        try:
+            typ, data = conn.status(mailbox, "(MESSAGES UNSEEN RECENT)")
+        except imaplib.IMAP4.error:
+            return {"exists": -1, "unseen": -1, "recent": -1}
+        if typ != "OK":
+            return {"exists": -1, "unseen": -1, "recent": -1}
+        result = {"exists": -1, "unseen": -1, "recent": -1}
+        for chunk in data or []:
+            text = chunk.decode("utf-8", errors="replace") if isinstance(chunk, bytes) else str(chunk)
+            match = re.search(r"MESSAGES\s+(\d+)", text)
+            if match:
+                result["exists"] = int(match.group(1))
+            match = re.search(r"UNSEEN\s+(\d+)", text)
+            if match:
+                result["unseen"] = int(match.group(1))
+            match = re.search(r"RECENT\s+(\d+)", text)
+            if match:
+                result["recent"] = int(match.group(1))
+        return result
 
     def unselect(self) -> None:
         conn = self._conn
@@ -337,6 +363,19 @@ class ImapClient:
 # Helpers
 
 
+def _response_int(values, default: int = 0) -> int:
+    """Best-effort int extraction from an untagged response list."""
+    if not values:
+        return default
+    try:
+        first = values[0]
+        if isinstance(first, bytes):
+            first = first.decode("ascii", errors="replace")
+        return int(first)
+    except (TypeError, ValueError):
+        return default
+
+
 def _safe_detail(exc: BaseException) -> str:
     """Trim exception text so no credentials leak into logs."""
     text = str(exc)
@@ -422,6 +461,30 @@ def _parse_sexp(text: str, start: int) -> tuple[object, int]:
             value = "".join(buf)
             pos = end
             return value
+        if text[pos] == "{":
+            literal = re.match(r"\{(\d+)\}", text[pos:])
+            if literal:
+                # IMAP literal: {n}\r\n followed by exactly n raw bytes —
+                # NetEase uses this for non-ASCII parameter values. imaplib
+                # strips the CRLF when it stitches the literal into the
+                # response line, leaving "{n}<content>" directly attached,
+                # so consume n BYTES worth of characters either way.
+                length = int(literal.group(1))
+                pos += literal.end()
+                if text.startswith("\r\n", pos):
+                    pos += 2
+                elif text.startswith("\n", pos):
+                    pos += 1
+                end = pos
+                acc = 0
+                while end < len(text) and acc < length:
+                    acc += len(text[end].encode("utf-8"))
+                    end += 1
+                if acc != length:  # malformed length — fall back to chars
+                    end = min(pos + length, len(text))
+                value = text[pos:end]
+                pos = end
+                return value
         # atom
         end = pos
         while end < len(text) and text[end] not in "() \r\n":

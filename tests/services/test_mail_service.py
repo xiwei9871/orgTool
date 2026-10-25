@@ -185,3 +185,78 @@ def test_test_connection_full_probe(tmp_path, fake_server) -> None:
     assert not bad.ok
     assert bad.code == MailErrorCode.AUTH_FAILED
     service.shutdown()
+
+
+def test_repair_invalid_downloads_marks_only_corrupt(tmp_path) -> None:
+    """done records whose stored file is base64 text or a broken PDF are
+    marked failed for re-download; healthy records are untouched."""
+    import base64
+
+    from tests.mail.conftest import VALID_PDF
+
+    config = AppConfig()
+    service = _service(tmp_path, config)
+    account = _account()
+    service.upsert_account(account, secret="s")
+    folder = service.store.upsert_folder(account.account_id, "INBOX")
+
+    def make_record(uid: int, name: str):
+        return service.store.upsert_attachment(
+            account_id=account.account_id,
+            folder_id=folder.id,
+            uidvalidity=1,
+            uid=uid,
+            message_id="",
+            subject="",
+            sender="",
+            message_date="",
+            attachment_index=0,
+            attachment_name=name,
+            part_number="2",
+            size=10,
+        )
+
+    corrupt_dir = tmp_path / "raw"
+    corrupt_dir.mkdir()
+
+    # 1. base64 text stored under a literal-corrupted name (live bug shape).
+    bad_file = corrupt_dir / "u1_a0_{266}truncated"
+    bad_file.write_bytes(base64.b64encode(VALID_PDF))
+    bad = make_record(1, "{266}truncated")
+    service.store.mark_attachment(
+        bad.id, "done", local_path=str(bad_file), content_hash="x1"
+    )
+
+    # 2. a real PDF that must stay done.
+    good_file = corrupt_dir / "u2_a0_real.pdf"
+    good_file.write_bytes(VALID_PDF)
+    good = make_record(2, "real.pdf")
+    service.store.mark_attachment(
+        good.id, "done", local_path=str(good_file), content_hash="x2"
+    )
+
+    # 3. a .pdf-named file whose content is broken.
+    broken_file = corrupt_dir / "u3_a0_broken.pdf"
+    broken_file.write_bytes(b"garbage")
+    broken = make_record(3, "broken.pdf")
+    service.store.mark_attachment(
+        broken.id, "done", local_path=str(broken_file), content_hash="x3"
+    )
+
+    # 4. non-pdf done record left alone even if content is arbitrary.
+    other_file = corrupt_dir / "u4_a0_note.txt"
+    other_file.write_bytes(b"not a pdf and never meant to be")
+    other = make_record(4, "note.txt")
+    service.store.mark_attachment(
+        other.id, "done", local_path=str(other_file), content_hash="x4"
+    )
+
+    repaired = service._repair_invalid_downloads(account.account_id)
+    assert repaired == 2
+    assert service.store.get_attachment(bad.id).download_status == "failed"
+    assert service.store.get_attachment(broken.id).download_status == "failed"
+    assert service.store.get_attachment(good.id).download_status == "done"
+    assert service.store.get_attachment(other.id).download_status == "done"
+    # Originals were not deleted.
+    assert bad_file.exists() and broken_file.exists()
+    service.shutdown()

@@ -330,6 +330,39 @@ class MailSyncStore:
                 ),
             )
 
+    def update_attachment_meta(
+        self,
+        record_id: int,
+        attachment_name: str | None = None,
+        part_number: str | None = None,
+    ) -> None:
+        """Refresh mutable metadata (name/part) after a bodystructure refresh."""
+        fields: list[str] = []
+        values: list = []
+        if attachment_name:
+            fields.append("attachment_name=?")
+            values.append(attachment_name)
+        if part_number:
+            fields.append("part_number=?")
+            values.append(part_number)
+        if not fields:
+            return
+        fields.append("updated_at=?")
+        values += [_now(), record_id]
+        with self._tx() as conn:
+            conn.execute(
+                f"UPDATE attachments SET {', '.join(fields)} WHERE id=?",
+                tuple(values),
+            )
+
+    def done_records(self, account_id: str) -> list[AttachmentRecord]:
+        rows = self._conn.execute(
+            """SELECT * FROM attachments
+               WHERE account_id=? AND download_status='done'""",
+            (account_id,),
+        ).fetchall()
+        return [_attachment_from_row(row) for row in rows]
+
     def find_by_hash(
         self, content_hash: str, exclude_id: int | None = None
     ) -> AttachmentRecord | None:
