@@ -6,12 +6,15 @@
 
 `InvoiceService.evaluate_pending` 对 `~/Desktop/发票管理/发票归档_待处理` 48 份 PDF 实跑：
 
-| 结果 | 数量 | 明细 |
+| 桶 | 数量 | 明细 |
 |---|---|---|
-| eligible=True（可自动归档候选） | **28** | 全部 doc_type=e_invoice，核心字段强证据，金额 verified，购销方齐全，无重复冲突，哈希复核通过 |
-| eligible=False（人工审核队列） | **20** | 原因全部为 `not_e_invoice`：hotel_folio 9 · travel_voucher 8 · unknown 2 · needs_ocr 1 |
+| 可自动归档 eligible | **28** | 全部 doc_type=e_invoice，核心字段强证据，金额 verified，购销方齐全，无重复冲突，哈希复核通过 |
+| 发票异常（e_invoice 但字段有问题） | **0** | 需人工修正后才可归档 |
+| 其他票据 | **17** | hotel_folio 9 · travel_voucher 8 —— 可识别的非发票票据，不占人工审核队列 |
+| 待识别 | **3** | unknown 2 · needs_ocr 1 —— 无法确定/需 OCR |
 
-28+20=48 闭合。dry-run 前后目录文件列表逐项一致——评估为纯读操作。
+28+0+17+3=48 闭合。dry-run 前后目录文件列表逐项一致——评估为纯读操作。
+「其他票据」「待识别」不再计入人工审核队列，审核页只呈现 e_invoice 异常项。
 
 ## 2. 硬条件语义验证（合成回归）
 

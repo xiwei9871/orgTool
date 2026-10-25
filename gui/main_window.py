@@ -822,14 +822,17 @@ class MainWindow(QMainWindow):
                 self.invoice_preview_result
             )
             summary = self.invoice_service.review_summary(candidates)
+            blocked = len(candidates) - summary["eligible"]
             self.invoice_page.summary_cards.set_counts(
-                len(candidates), summary["eligible"], summary["review"]
+                len(candidates), summary["eligible"], blocked
             )
             self._update_archive_stats(candidates)
             self._refresh_month_combo()
             self.app_status_bar.set_message(
                 f"归档评估完成: 可自动归档 {summary['eligible']} · "
-                f"需人工审核 {summary['review']}"
+                f"发票异常 {summary['needs_review']} · "
+                f"其他票据 {summary['other_voucher']} · "
+                f"待识别 {summary['unidentified']}"
             )
             if on_done is not None:
                 on_done()
@@ -846,6 +849,14 @@ class MainWindow(QMainWindow):
             )
             target_path = plan.target_path
         reason_texts = [_REASON_TEXT.get(r, r) for r in candidate.reasons]
+        if candidate.eligible:
+            remark = "可自动归档"
+        elif record.doc_type == "e_invoice":
+            remark = "需审核: " + "、".join(reason_texts)
+        elif record.doc_type in self.invoice_service._OTHER_VOUCHER_TYPES:
+            remark = f"其他票据: {record.doc_type}"
+        else:
+            remark = f"待识别: {record.doc_type}"
         return InvoicePreviewItem(
             file_name=record.file_name,
             source_path=candidate.source_path,
@@ -858,11 +869,7 @@ class MainWindow(QMainWindow):
             report_path="",
             month_key=month_key,
             status=record.recognition_status,
-            remark=(
-                "可自动归档"
-                if candidate.eligible
-                else "需审核: " + "、".join(reason_texts)
-            ),
+            remark=remark,
             is_skipped=not candidate.eligible,
             skip_reason=";".join(candidate.reasons),
             record=record,
@@ -1012,18 +1019,24 @@ class MainWindow(QMainWindow):
             else 0
         )
         if candidates is None:
-            review_pending = sum(
+            needs_review = sum(
                 1 for r in records if r.review_status == "pending_review"
             )
             duplicates = 0
+            other_voucher = 0
+            unidentified = 0
         else:
-            review_pending = sum(1 for c in candidates if not c.eligible)
+            summary = self.invoice_service.review_summary(candidates)
+            needs_review = summary["needs_review"]
+            other_voucher = summary["other_voucher"]
+            unidentified = summary["unidentified"]
             duplicates = sum(
                 1
                 for c in candidates
                 if c.duplicate_status in ("强重复", "疑似重复")
             )
         self.invoice_page.archive_stats_label.setText(
-            f"已归档 {archived} | 异常待审核 {review_pending} | "
+            f"已归档 {archived} | 发票异常 {needs_review} | "
+            f"其他票据 {other_voucher} | 待识别 {unidentified} | "
             f"重复 {duplicates} | 其他附件 {other_attachments}"
         )

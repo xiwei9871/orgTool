@@ -499,13 +499,33 @@ class InvoiceService:
         }
         return sorted(months, reverse=True)
 
+    _OTHER_VOUCHER_TYPES = {"travel_voucher", "hotel_folio", "other_pdf"}
+    _UNIDENTIFIED_TYPES = {"needs_ocr", "unknown"}
+
     def review_summary(self, candidates: list[ArchiveCandidate]) -> dict:
+        """Split non-eligible items into meaningful buckets.
+
+        Only e_invoice records with field-level problems need human
+        review; recognized non-invoices are either other vouchers
+        (already identifiable) or unidentified files (OCR/unknown).
+        """
         eligible = sum(1 for c in candidates if c.eligible)
         return {
             "eligible": eligible,
-            "review": len(candidates) - eligible,
-            "non_invoice": sum(
-                1 for c in candidates if c.record.doc_type != DOC_E_INVOICE
+            "needs_review": sum(
+                1
+                for c in candidates
+                if not c.eligible and c.record.doc_type == DOC_E_INVOICE
+            ),
+            "other_voucher": sum(
+                1
+                for c in candidates
+                if c.record.doc_type in self._OTHER_VOUCHER_TYPES
+            ),
+            "unidentified": sum(
+                1
+                for c in candidates
+                if c.record.doc_type in self._UNIDENTIFIED_TYPES
             ),
         }
 

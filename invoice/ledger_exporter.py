@@ -3,10 +3,10 @@
 Two sheets per month file:
 
 - ``报销流水`` — the printable reimbursement form mirroring the user's
-  existing template (序号/日期/姓名/金额/类别/凭证类型/费用发生地/备注),
-  plus 报销状态 so invoice archive ≠ reimbursed expense stays explicit.
-  备注 is always blank by design.
-- ``发票明细`` — full tax fields + local PDF path for traceability.
+  existing template exactly (序号/日期/姓名/金额/类别/凭证类型/
+  费用发生地/备注).  备注 is the last column and always blank.
+- ``发票明细`` — full tax fields, reimburse state + local PDF path for
+  traceability, so the flow sheet stays print-clean.
 
 Export is a pure function of archived records, so regenerating a month
 can never double-count.  Writes go through a temp file + os.replace.
@@ -23,13 +23,14 @@ from openpyxl.utils import get_column_letter
 
 from models.invoice import InvoiceRecord
 
-FLOW_HEADERS = ["序号", "日期", "姓名", "金额", "类别", "凭证类型", "费用发生地", "备注", "报销状态"]
+FLOW_HEADERS = ["序号", "日期", "姓名", "金额", "类别", "凭证类型", "费用发生地", "备注"]
 DETAIL_HEADERS = [
     "序号", "发票号码", "开票日期", "价税合计", "税额", "购买方", "销售方",
-    "发票内容", "文件名", "PDF路径", "归档状态", "审核状态", "重复状态", "来源",
+    "发票内容", "文件名", "PDF路径", "归档状态", "审核状态", "重复状态",
+    "报销状态", "来源",
 ]
-_FLOW_WIDTHS = [6, 12, 10, 10, 12, 10, 14, 16, 10]
-_DETAIL_WIDTHS = [6, 22, 12, 10, 10, 30, 30, 28, 36, 44, 12, 10, 10, 16]
+_FLOW_WIDTHS = [6, 12, 10, 10, 12, 10, 14, 16]
+_DETAIL_WIDTHS = [6, 22, 12, 10, 10, 30, 30, 28, 36, 44, 12, 10, 10, 10, 16]
 
 _ARCHIVE_TEXT = {"auto_archived": "自动归档", "manually_archived": "人工确认归档", "deferred": "暂缓"}
 _REVIEW_TEXT = {"pending_review": "待审核", "confirmed": "已确认", "": ""}
@@ -84,10 +85,9 @@ class MonthlyLedgerExporter:
                     "电子发票",
                     record.expense_location or "",
                     "",
-                    _REIMBURSE_TEXT.get(record.reimburse_state, "未确定"),
                 ]
             )
-        sheet.append(["合计", "", "", round(total, 2), f"共 {len(rows)} 张", "", "", "", ""])
+        sheet.append(["合计", "", "", round(total, 2), f"共 {len(rows)} 张", "", "", ""])
         self._finish_sheet(sheet, _FLOW_WIDTHS, last_row=len(rows) + 1)
         for row_idx in range(2, len(rows) + 3):
             cell = sheet.cell(row=row_idx, column=4)
@@ -111,6 +111,7 @@ class MonthlyLedgerExporter:
                     _ARCHIVE_TEXT.get(record.archive_status, record.archive_status or ""),
                     _REVIEW_TEXT.get(record.review_status, record.review_status or ""),
                     "新发票",
+                    _REIMBURSE_TEXT.get(record.reimburse_state, "未确定"),
                     record.source_type or "",
                 ]
             )

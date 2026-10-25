@@ -38,7 +38,7 @@ class InvoicePage(QWidget):
         self.mail_panel = self.mail_dialog.panel
         self.summary_cards = SummaryCards()
         self.archive_stats_label = QLabel(
-            "已归档 0 | 异常待审核 0 | 重复 0 | 其他附件 0"
+            "已归档 0 | 发票异常 0 | 其他票据 0 | 待识别 0 | 重复 0 | 其他附件 0"
         )
         self.dir_stats_label = QLabel("目录统计: -")
 

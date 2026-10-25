@@ -196,7 +196,7 @@ def test_ledger_two_sheets_and_totals(tmp_path: Path) -> None:
 
     book = openpyxl.load_workbook(out)
     flow = book["报销流水"]
-    assert [c.value for c in flow[1]][:8] == [
+    assert [c.value for c in flow[1]] == [
         "序号", "日期", "姓名", "金额", "类别", "凭证类型", "费用发生地", "备注",
     ]
     # Sorted by date ascending
@@ -212,8 +212,11 @@ def test_ledger_two_sheets_and_totals(tmp_path: Path) -> None:
     assert flow.freeze_panes == "A2"
 
     detail = book["发票明细"]
+    headers = [c.value for c in detail[1]]
+    assert "报销状态" in headers and "发票号码" in headers
     assert detail.cell(row=2, column=2).value == "26512000000000000002"
     assert detail.cell(row=2, column=11).value == "自动归档"
+    assert detail.cell(row=2, column=headers.index("报销状态") + 1).value == "未确定"
 
 
 def test_ledger_regeneration_does_not_duplicate(tmp_path: Path) -> None:
@@ -246,3 +249,33 @@ def test_plan_month() -> None:
     assert plan_month("2026-10-08") == "202610"
     assert plan_month("") == ""
     assert plan_month("2026-10") == ""
+
+
+def test_review_summary_splits_buckets(tmp_path: Path) -> None:
+    service, _config, _pending = _service(tmp_path)
+
+    def cand(doc_type: str, eligible: bool = False) -> ArchiveCandidate:
+        return ArchiveCandidate(
+            record=_record(doc_type=doc_type),
+            source_path="/tmp/x.pdf",
+            duplicate_status="新发票",
+            duplicate_reason="",
+            eligible=eligible,
+            reasons=[] if eligible else ["not_e_invoice"],
+        )
+
+    candidates = [
+        cand("e_invoice", eligible=True),
+        cand("e_invoice"),  # e_invoice with problems -> needs human review
+        cand("hotel_folio"),
+        cand("travel_voucher"),
+        cand("needs_ocr"),
+        cand("unknown"),
+    ]
+    summary = service.review_summary(candidates)
+    assert summary == {
+        "eligible": 1,
+        "needs_review": 1,
+        "other_voucher": 2,
+        "unidentified": 2,
+    }

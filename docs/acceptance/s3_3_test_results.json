@@ -1,17 +1,32 @@
 {
   "date": "2026-10-25",
   "branch": "feature/s3-3-auto-archive",
-  "suite": {"total": 228, "passed": 227, "skipped": 1},
+  "suite": {
+    "total": 229,
+    "passed": 228,
+    "skipped": 1
+  },
   "new_tests": {
-    "tests/invoice/test_auto_archive.py": 15
+    "tests/invoice/test_auto_archive.py": 16
   },
   "dry_run_real_pending": {
     "total_files": 48,
     "eligible": 28,
-    "review_queue": 20,
-    "review_reasons": {"not_e_invoice": 20},
-    "review_doc_types": {"hotel_folio": 9, "travel_voucher": 8, "unknown": 2, "needs_ocr": 1},
-    "files_moved": 0
+    "review_queue": 0,
+    "review_reasons": {},
+    "review_doc_types": {
+      "hotel_folio": 9,
+      "travel_voucher": 8,
+      "unknown": 2,
+      "needs_ocr": 1
+    },
+    "files_moved": 0,
+    "buckets": {
+      "eligible": 28,
+      "needs_review": 0,
+      "other_voucher": 17,
+      "unidentified": 3
+    }
   },
   "ledger_real_check": {
     "flow_rows": 28,
@@ -19,14 +34,45 @@
     "matches_real_sum": true,
     "remark_column_blank": true,
     "month": "202610",
-    "category_distribution": {"差旅费": 10, "业务招待费": 5, "待确认": 13}
+    "category_distribution": {
+      "差旅费": 10,
+      "业务招待费": 5,
+      "待确认": 13
+    },
+    "flow_headers": [
+      "序号",
+      "日期",
+      "姓名",
+      "金额",
+      "类别",
+      "凭证类型",
+      "费用发生地",
+      "备注"
+    ],
+    "remark_is_last_column_and_blank": true,
+    "detail_extra_columns": [
+      "报销状态"
+    ]
   },
   "eligibility_hard_conditions": [
-    "not_e_invoice", "not_complete", "missing_number", "weak_number",
-    "bad_number_format", "missing_date", "weak_date", "bad_date_format",
-    "missing_amount", "bad_amount", "weak_amount", "tax_missing",
-    "buyer_missing", "seller_missing", "duplicate_conflict",
-    "file_hash_missing", "file_unreadable", "review_flags"
+    "not_e_invoice",
+    "not_complete",
+    "missing_number",
+    "weak_number",
+    "bad_number_format",
+    "missing_date",
+    "weak_date",
+    "bad_date_format",
+    "missing_amount",
+    "bad_amount",
+    "weak_amount",
+    "tax_missing",
+    "buyer_missing",
+    "seller_missing",
+    "duplicate_conflict",
+    "file_hash_missing",
+    "file_unreadable",
+    "review_flags"
   ],
   "gui": {
     "window": "1280x800",
