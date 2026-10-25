@@ -1,0 +1,786 @@
+[
+ {
+  "file": "2108121084233568256.pdf",
+  "doc_type": "e_invoice",
+  "text_chars": 316,
+  "parser": {
+   "number": "26352000002308138771",
+   "date": "2026-10-08",
+   "amount": 87.61,
+   "status": "complete",
+   "date_source": "content",
+   "content": ""
+  },
+  "truth": {
+   "number": "26352000002308138771",
+   "date": "2026-10-08",
+   "amount": 99.0
+  }
+ },
+ {
+  "file": "26512000004381680616.pdf",
+  "doc_type": "e_invoice",
+  "text_chars": 328,
+  "parser": {
+   "number": "26512000004381680616",
+   "date": "2026-10-02",
+   "amount": 679.25,
+   "status": "complete",
+   "date_source": "content",
+   "content": ""
+  },
+  "truth": {
+   "number": "26512000004381680616",
+   "date": "2026-10-02",
+   "amount": 720.0
+  }
+ },
+ {
+  "file": "26512000004627103701.pdf",
+  "doc_type": "e_invoice",
+  "text_chars": 383,
+  "parser": {
+   "number": "26512000004627103701",
+   "date": "2026-10-19",
+   "amount": 302.97,
+   "status": "complete",
+   "date_source": "content",
+   "content": ""
+  },
+  "truth": {
+   "number": "26512000004627103701",
+   "date": "2026-10-19",
+   "amount": 306.0
+  }
+ },
+ {
+  "file": "6928419880305917737.pdf",
+  "doc_type": "e_invoice",
+  "text_chars": 349,
+  "parser": {
+   "number": "26352000002276203951",
+   "date": "2026-10-03",
+   "amount": 119.0,
+   "status": "complete",
+   "date_source": "content",
+   "content": ""
+  },
+  "truth": {
+   "number": "26352000002276203951",
+   "date": "2026-10-03",
+   "amount": 119.0
+  }
+ },
+ {
+  "file": "6929752664363204393.pdf",
+  "doc_type": "e_invoice",
+  "text_chars": 364,
+  "parser": {
+   "number": "26332000008533891546",
+   "date": "2026-10-04",
+   "amount": 49.0,
+   "status": "complete",
+   "date_source": "content",
+   "content": ""
+  },
+  "truth": {
+   "number": "26332000008533891546",
+   "date": "2026-10-04",
+   "amount": 49.0
+  }
+ },
+ {
+  "file": "710221751012.pdf",
+  "doc_type": "e_invoice",
+  "text_chars": 328,
+  "parser": {
+   "number": "26317000003543633463",
+   "date": "2026-10-22",
+   "amount": 310.0,
+   "status": "complete",
+   "date_source": "content",
+   "content": ""
+  },
+  "truth": {
+   "number": "26317000003543633463",
+   "date": "2026-10-22",
+   "amount": 310.0
+  }
+ },
+ {
+  "file": "710221751013.pdf",
+  "doc_type": "e_invoice",
+  "text_chars": 331,
+  "parser": {
+   "number": "26357000000217599571",
+   "date": "2026-10-22",
+   "amount": 461.44,
+   "status": "complete",
+   "date_source": "content",
+   "content": ""
+  },
+  "truth": {
+   "number": "26357000000217599571",
+   "date": "2026-10-22",
+   "amount": 461.44
+  }
+ },
+ {
+  "file": "710221751014.pdf",
+  "doc_type": "e_invoice",
+  "text_chars": 322,
+  "parser": {
+   "number": "26117000001592382382",
+   "date": "2026-10-22",
+   "amount": 336.0,
+   "status": "complete",
+   "date_source": "content",
+   "content": ""
+  },
+  "truth": {
+   "number": "26117000001592382382",
+   "date": "2026-10-22",
+   "amount": 336.0
+  }
+ },
+ {
+  "file": "710221751015.pdf",
+  "doc_type": "e_invoice",
+  "text_chars": 331,
+  "parser": {
+   "number": "26357000000217599572",
+   "date": "2026-10-22",
+   "amount": 189.98,
+   "status": "complete",
+   "date_source": "content",
+   "content": ""
+  },
+  "truth": {
+   "number": "26357000000217599572",
+   "date": "2026-10-22",
+   "amount": 189.98
+  }
+ },
+ {
+  "file": "ETC明细单 (1).pdf",
+  "doc_type": "voucher",
+  "text_chars": 194,
+  "parser": {
+   "number": "17893605679131",
+   "date": "2026-09-16",
+   "amount": 9.98,
+   "status": "complete",
+   "date_source": "content",
+   "content": ""
+  },
+  "truth": null
+ },
+ {
+  "file": "ETC明细单.pdf",
+  "doc_type": "voucher",
+  "text_chars": 399,
+  "parser": {
+   "number": "17916042775217",
+   "date": "2026-10-10",
+   "amount": 171.44,
+   "status": "complete",
+   "date_source": "content",
+   "content": ""
+  },
+  "truth": null
+ },
+ {
+  "file": "dzfp_26112000004500568066_四川幔壳科技有限公司_20261022175255.pdf",
+  "doc_type": "e_invoice",
+  "text_chars": 558,
+  "parser": {
+   "number": "26112000004500568066",
+   "date": "2026-10-22",
+   "amount": 763.3,
+   "status": "complete",
+   "date_source": "content",
+   "content": ""
+  },
+  "truth": {
+   "number": "26112000004500568066",
+   "date": "2026-10-22",
+   "amount": 763.3
+  }
+ },
+ {
+  "file": "dzfp_26112000004501054876_四川幔壳科技有限公司_20261022175256.pdf",
+  "doc_type": "e_invoice",
+  "text_chars": 546,
+  "parser": {
+   "number": "26112000004501054876",
+   "date": "2026-10-22",
+   "amount": 492.15,
+   "status": "complete",
+   "date_source": "content",
+   "content": ""
+  },
+  "truth": {
+   "number": "26112000004501054876",
+   "date": "2026-10-22",
+   "amount": 492.15
+  }
+ },
+ {
+  "file": "dzfp_26142000001582401571_四川幔壳科技有限公司_20261022175254.pdf",
+  "doc_type": "e_invoice",
+  "text_chars": 538,
+  "parser": {
+   "number": "26142000001582401571",
+   "date": "2026-10-22",
+   "amount": 347.65,
+   "status": "complete",
+   "date_source": "content",
+   "content": ""
+  },
+  "truth": {
+   "number": "26142000001582401571",
+   "date": "2026-10-22",
+   "amount": 347.65
+  }
+ },
+ {
+  "file": "dzfp_26322000008732353396_四川幔壳科技有限公司_20261022175255.pdf",
+  "doc_type": "e_invoice",
+  "text_chars": 554,
+  "parser": {
+   "number": "26322000008732353396",
+   "date": "2026-10-22",
+   "amount": 339.15,
+   "status": "complete",
+   "date_source": "content",
+   "content": ""
+  },
+  "truth": {
+   "number": "26322000008732353396",
+   "date": "2026-10-22",
+   "amount": 339.15
+  }
+ },
+ {
+  "file": "dzfp_26322000008732650081_四川幔壳科技有限公司_20261022175256.pdf",
+  "doc_type": "e_invoice",
+  "text_chars": 537,
+  "parser": {
+   "number": "26322000008732650081",
+   "date": "2026-10-22",
+   "amount": 262.65,
+   "status": "complete",
+   "date_source": "content",
+   "content": ""
+  },
+  "truth": {
+   "number": "26322000008732650081",
+   "date": "2026-10-22",
+   "amount": 262.65
+  }
+ },
+ {
+  "file": "dzfp_26322000008735032531_四川幔壳科技有限公司_20261022175255.pdf",
+  "doc_type": "e_invoice",
+  "text_chars": 530,
+  "parser": {
+   "number": "26322000008735032531",
+   "date": "2026-10-22",
+   "amount": 313.65,
+   "status": "complete",
+   "date_source": "content",
+   "content": ""
+  },
+  "truth": {
+   "number": "26322000008735032531",
+   "date": "2026-10-22",
+   "amount": 313.65
+  }
+ },
+ {
+  "file": "dzfp_26342000003221606401_四川幔壳科技有限公司_20261011153218.pdf",
+  "doc_type": "e_invoice",
+  "text_chars": 480,
+  "parser": {
+   "number": "26342000003221606401",
+   "date": "2026-10-11",
+   "amount": 168.5,
+   "status": "complete",
+   "date_source": "content",
+   "content": ""
+  },
+  "truth": {
+   "number": "26342000003221606401",
+   "date": "2026-10-11",
+   "amount": 169.0
+  }
+ },
+ {
+  "file": "dzfp_26442000012109213306_四川幔壳科技有限公司_20261022175256.pdf",
+  "doc_type": "e_invoice",
+  "text_chars": 567,
+  "parser": {
+   "number": "26442000012109213306",
+   "date": "2026-10-22",
+   "amount": 313.65,
+   "status": "complete",
+   "date_source": "content",
+   "content": ""
+  },
+  "truth": {
+   "number": "26442000012109213306",
+   "date": "2026-10-22",
+   "amount": 313.65
+  }
+ },
+ {
+  "file": "dzfp_26442000012109216246_四川幔壳科技有限公司_20261022175255.pdf",
+  "doc_type": "e_invoice",
+  "text_chars": 555,
+  "parser": {
+   "number": "26442000012109216246",
+   "date": "2026-10-22",
+   "amount": 610.3,
+   "status": "complete",
+   "date_source": "content",
+   "content": ""
+  },
+  "truth": {
+   "number": "26442000012109216246",
+   "date": "2026-10-22",
+   "amount": 610.3
+  }
+ },
+ {
+  "file": "dzfp_26532000001722315541_四川幔壳科技有限公司_20261003103839.pdf",
+  "doc_type": "e_invoice",
+  "text_chars": 332,
+  "parser": {
+   "number": "26532000001722315541",
+   "date": "2026-10-03",
+   "amount": 105.09,
+   "status": "complete",
+   "date_source": "content",
+   "content": ""
+  },
+  "truth": {
+   "number": "26532000001722315541",
+   "date": "2026-10-03",
+   "amount": 118.75
+  }
+ },
+ {
+  "file": "dzfp_26952000004484744131_四川幔壳科技有限公司_20261022192434.pdf",
+  "doc_type": "e_invoice",
+  "text_chars": 562,
+  "parser": {
+   "number": "26952000004484744131",
+   "date": "2026-10-22",
+   "amount": 262.65,
+   "status": "complete",
+   "date_source": "content",
+   "content": ""
+  },
+  "truth": {
+   "number": "26952000004484744131",
+   "date": "2026-10-22",
+   "amount": 262.65
+  }
+ },
+ {
+  "file": "rental_agreement_17893605679131.pdf",
+  "doc_type": "agreement",
+  "text_chars": 2170,
+  "parser": {
+   "number": "17893605679131",
+   "date": "2026-10-25",
+   "amount": 466.0,
+   "status": "complete",
+   "date_source": "modified_time",
+   "content": ""
+  },
+  "truth": null
+ },
+ {
+  "file": "rental_agreement_17916042775217.pdf",
+  "doc_type": "agreement",
+  "text_chars": 2174,
+  "parser": {
+   "number": "17916042775217",
+   "date": "2026-10-25",
+   "amount": 450.0,
+   "status": "complete",
+   "date_source": "modified_time",
+   "content": ""
+  },
+  "truth": null
+ },
+ {
+  "file": "【飞猪】上海-成都  订单10226168559182-机票款凭证 报销凭证.pdf",
+  "doc_type": "e_invoice",
+  "text_chars": 332,
+  "parser": {
+   "number": "26317000003789210470",
+   "date": "2026-10-22",
+   "amount": 1250.0,
+   "status": "complete",
+   "date_source": "content",
+   "content": ""
+  },
+  "truth": {
+   "number": "26317000003789210470",
+   "date": "2026-10-22",
+   "amount": 1250.0
+  }
+ },
+ {
+  "file": "【飞猪】北京-成都  订单10173022946182-退票手续费 报销凭证.pdf",
+  "doc_type": "e_invoice",
+  "text_chars": 355,
+  "parser": {
+   "number": "26317000003789210486",
+   "date": "2026-10-22",
+   "amount": 78.0,
+   "status": "complete",
+   "date_source": "content",
+   "content": ""
+  },
+  "truth": {
+   "number": "26317000003789210486",
+   "date": "2026-10-22",
+   "amount": 78.0
+  }
+ },
+ {
+  "file": "【飞猪】北京-成都  订单10173023255182-机票款凭证 报销凭证.pdf",
+  "doc_type": "e_invoice",
+  "text_chars": 333,
+  "parser": {
+   "number": "26317000003789210476",
+   "date": "2026-10-22",
+   "amount": 1960.0,
+   "status": "complete",
+   "date_source": "content",
+   "content": ""
+  },
+  "truth": {
+   "number": "26317000003789210476",
+   "date": "2026-10-22",
+   "amount": 1960.0
+  }
+ },
+ {
+  "file": "【飞猪】成都-南通  订单10234324144182-机票款凭证 报销凭证.pdf",
+  "doc_type": "e_invoice",
+  "text_chars": 332,
+  "parser": {
+   "number": "26317000003789210478",
+   "date": "2026-10-22",
+   "amount": 2060.0,
+   "status": "complete",
+   "date_source": "content",
+   "content": ""
+  },
+  "truth": {
+   "number": "26317000003789210478",
+   "date": "2026-10-22",
+   "amount": 2060.0
+  }
+ },
+ {
+  "file": "【飞猪】成都-太原  订单10149571893182-机票款凭证 报销凭证.pdf",
+  "doc_type": "e_invoice",
+  "text_chars": 326,
+  "parser": {
+   "number": "26317000003789210467",
+   "date": "2026-10-22",
+   "amount": 720.0,
+   "status": "complete",
+   "date_source": "content",
+   "content": ""
+  },
+  "truth": {
+   "number": "26317000003789210467",
+   "date": "2026-10-22",
+   "amount": 720.0
+  }
+ },
+ {
+  "file": "天府通电子行程单.pdf",
+  "doc_type": "voucher",
+  "text_chars": 3533,
+  "parser": {
+   "number": "202610101034302206",
+   "date": "2025-11-13",
+   "amount": 284.2,
+   "status": "complete",
+   "date_source": "content",
+   "content": ""
+  },
+  "truth": null
+ },
+ {
+  "file": "方.pdf",
+  "doc_type": "image_only",
+  "text_chars": 0,
+  "parser": {
+   "number": "",
+   "date": "2026-10-25",
+   "amount": null,
+   "status": "partial",
+   "date_source": "modified_time",
+   "content": ""
+  },
+  "truth": null
+ },
+ {
+  "file": "机票出行单.pdf",
+  "doc_type": "other",
+  "text_chars": 1120,
+  "parser": {
+   "number": "7514948108",
+   "date": "2026-10-25",
+   "amount": null,
+   "status": "partial",
+   "date_source": "modified_time",
+   "content": ""
+  },
+  "truth": null
+ },
+ {
+  "file": "滴滴出行行程报销单A.pdf",
+  "doc_type": "voucher",
+  "text_chars": 278,
+  "parser": {
+   "number": "15982375981",
+   "date": "2026-10-10",
+   "amount": 44.5,
+   "status": "complete",
+   "date_source": "content",
+   "content": ""
+  },
+  "truth": null
+ },
+ {
+  "file": "滴滴出行行程报销单B.pdf",
+  "doc_type": "voucher",
+  "text_chars": 654,
+  "parser": {
+   "number": "15982375981",
+   "date": "2026-10-10",
+   "amount": 221.7,
+   "status": "complete",
+   "date_source": "content",
+   "content": ""
+  },
+  "truth": null
+ },
+ {
+  "file": "滴滴出行行程报销单C.pdf",
+  "doc_type": "voucher",
+  "text_chars": 254,
+  "parser": {
+   "number": "15982375981",
+   "date": "2026-10-10",
+   "amount": 29.5,
+   "status": "complete",
+   "date_source": "content",
+   "content": ""
+  },
+  "truth": null
+ },
+ {
+  "file": "滴滴电子发票A.pdf",
+  "doc_type": "e_invoice",
+  "text_chars": 398,
+  "parser": {
+   "number": "26317000003669102866",
+   "date": "2026-10-10",
+   "amount": 62.91,
+   "status": "complete",
+   "date_source": "content",
+   "content": ""
+  },
+  "truth": {
+   "number": "26317000003669102866",
+   "date": "2026-10-10",
+   "amount": 44.5
+  }
+ },
+ {
+  "file": "滴滴电子发票B.pdf",
+  "doc_type": "e_invoice",
+  "text_chars": 404,
+  "parser": {
+   "number": "26517000000697777405",
+   "date": "2026-10-10",
+   "amount": 261.07,
+   "status": "complete",
+   "date_source": "content",
+   "content": ""
+  },
+  "truth": {
+   "number": "26517000000697777405",
+   "date": "2026-10-10",
+   "amount": 221.7
+  }
+ },
+ {
+  "file": "滴滴电子发票C.pdf",
+  "doc_type": "e_invoice",
+  "text_chars": 397,
+  "parser": {
+   "number": "26117000001567481758",
+   "date": "2026-10-10",
+   "amount": 38.25,
+   "status": "complete",
+   "date_source": "content",
+   "content": ""
+  },
+  "truth": {
+   "number": "26117000001567481758",
+   "date": "2026-10-10",
+   "amount": 29.5
+  }
+ },
+ {
+  "file": "结账单20261022 (1).pdf",
+  "doc_type": "statement",
+  "text_chars": 425,
+  "parser": {
+   "number": "62387373",
+   "date": "2026-10-10",
+   "amount": 339.15,
+   "status": "complete",
+   "date_source": "content",
+   "content": ""
+  },
+  "truth": null
+ },
+ {
+  "file": "结账单20261022 (2).pdf",
+  "doc_type": "statement",
+  "text_chars": 487,
+  "parser": {
+   "number": "82602888",
+   "date": "2026-10-11",
+   "amount": 262.65,
+   "status": "complete",
+   "date_source": "content",
+   "content": ""
+  },
+  "truth": null
+ },
+ {
+  "file": "结账单20261022 (3).pdf",
+  "doc_type": "statement",
+  "text_chars": 439,
+  "parser": {
+   "number": "18118475229",
+   "date": "2026-10-12",
+   "amount": 313.65,
+   "status": "complete",
+   "date_source": "content",
+   "content": ""
+  },
+  "truth": null
+ },
+ {
+  "file": "结账单20261022 (4).pdf",
+  "doc_type": "statement",
+  "text_chars": 428,
+  "parser": {
+   "number": "",
+   "date": "2026-09-11",
+   "amount": 347.65,
+   "status": "partial",
+   "date_source": "content",
+   "content": ""
+  },
+  "truth": null
+ },
+ {
+  "file": "结账单20261022 (5).pdf",
+  "doc_type": "statement",
+  "text_chars": 423,
+  "parser": {
+   "number": "83677750",
+   "date": "2026-09-13",
+   "amount": 492.15,
+   "status": "complete",
+   "date_source": "content",
+   "content": ""
+  },
+  "truth": null
+ },
+ {
+  "file": "结账单20261022 (6).pdf",
+  "doc_type": "statement",
+  "text_chars": 418,
+  "parser": {
+   "number": "61822888",
+   "date": "2026-07-15",
+   "amount": 313.65,
+   "status": "complete",
+   "date_source": "content",
+   "content": ""
+  },
+  "truth": null
+ },
+ {
+  "file": "结账单20261022 (7).pdf",
+  "doc_type": "statement",
+  "text_chars": 423,
+  "parser": {
+   "number": "63003888",
+   "date": "2026-07-12",
+   "amount": 610.3,
+   "status": "complete",
+   "date_source": "content",
+   "content": ""
+  },
+  "truth": null
+ },
+ {
+  "file": "结账单20261022 (8).pdf",
+  "doc_type": "statement",
+  "text_chars": 430,
+  "parser": {
+   "number": "29975666",
+   "date": "2026-07-15",
+   "amount": 262.65,
+   "status": "complete",
+   "date_source": "content",
+   "content": ""
+  },
+  "truth": null
+ },
+ {
+  "file": "结账单20261022.pdf",
+  "doc_type": "statement",
+  "text_chars": 435,
+  "parser": {
+   "number": "68885851",
+   "date": "2026-09-14",
+   "amount": 763.3,
+   "status": "complete",
+   "date_source": "content",
+   "content": ""
+  },
+  "truth": null
+ },
+ {
+  "file": "英文机票出行单.pdf",
+  "doc_type": "other",
+  "text_chars": 1000,
+  "parser": {
+   "number": "7514948108",
+   "date": "2026-10-25",
+   "amount": null,
+   "status": "partial",
+   "date_source": "modified_time",
+   "content": ""
+  },
+  "truth": null
+ }
+]
