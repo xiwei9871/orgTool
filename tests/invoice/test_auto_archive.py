@@ -325,7 +325,7 @@ def test_archive_non_invoices_moves_and_keeps(tmp_path: Path) -> None:
          cand("misc.pdf", "other_pdf")],
         config,
     )
-    review = Path(config.root_dir) / "待审核附件"
+    review = Path(config.root_dir) / "非发票附件"
     assert (review / "folio.pdf").exists()
     assert (review / "misc.pdf").exists()
     # 不确定/低置信度的留下等人工：unknown 和 needs_ocr 都保留
@@ -340,7 +340,7 @@ def test_archive_non_invoices_merges_same_hash(tmp_path: Path) -> None:
     service, config, pending = _service(tmp_path)
     content = b"SAME" * 10
     (pending / "dup.pdf").write_bytes(content)
-    review = Path(config.root_dir) / "待审核附件"
+    review = Path(config.root_dir) / "非发票附件"
     review.mkdir(parents=True)
     (review / "dup.pdf").write_bytes(content)
 
@@ -360,7 +360,7 @@ def test_archive_non_invoices_merges_same_hash(tmp_path: Path) -> None:
 def test_archive_non_invoices_suffixes_diff_content(tmp_path: Path) -> None:
     service, config, pending = _service(tmp_path)
     (pending / "same.pdf").write_bytes(b"NEW")
-    review = Path(config.root_dir) / "待审核附件"
+    review = Path(config.root_dir) / "非发票附件"
     review.mkdir(parents=True)
     (review / "same.pdf").write_bytes(b"OLD")
 

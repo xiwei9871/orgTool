@@ -40,6 +40,7 @@ DEFAULT_DESKTOP_CONFIG = {
 DEFAULT_INVOICE_CONFIG = {
     "root_dir": "",
     "pending_dir_name": "发票归档_待处理",
+    "non_invoice_dir_name": "非发票附件",
     "monthly_dir_name": "按月份归档",
     "duplicate_dir_name": "重复发票",
     "report_dir_name": "导出报表",

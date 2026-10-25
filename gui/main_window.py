@@ -572,7 +572,7 @@ class MainWindow(QMainWindow):
         open_in_file_explorer(path)
 
     def open_invoice_review(self) -> None:
-        path = self._invoice_subdir("待审核附件")
+        path = self._invoice_subdir(self.config.invoice.non_invoice_dir_name)
         path.mkdir(parents=True, exist_ok=True)
         open_in_file_explorer(path)
 
@@ -596,12 +596,12 @@ class MainWindow(QMainWindow):
             )
 
         pending = count(self._invoice_subdir(cfg.pending_dir_name))
-        review = count(self._invoice_subdir("待审核附件"))
+        review = count(self._invoice_subdir(cfg.non_invoice_dir_name))
         archive = count(self._invoice_subdir(cfg.monthly_dir_name))
         reports = count(self._invoice_subdir(cfg.report_dir_name), "*.xlsx")
         raw = count(self._invoice_subdir("邮件原始附件"))
         self.invoice_page.dir_stats_label.setText(
-            f"目录统计: 待处理 {pending} | 待审核 {review} | "
+            f"目录统计: 待处理 {pending} | 非发票附件 {review} | "
             f"已归档 {archive} | 报表 {reports} | 邮件原始附件 {raw}"
         )
 
@@ -1041,7 +1041,7 @@ class MainWindow(QMainWindow):
             for r in records
             if r.archive_status in ("auto_archived", "manually_archived")
         )
-        review_dir = Path(self.config.invoice.root_dir) / "待审核附件"
+        review_dir = Path(self.config.invoice.root_dir) / self.config.invoice.non_invoice_dir_name
         other_attachments = (
             sum(
                 1
@@ -1093,7 +1093,7 @@ class MainWindow(QMainWindow):
         reply = QMessageBox.question(
             self,
             "归档非发票",
-            f"将把 {movable} 份已确认非发票附件移入「待审核附件」目录。\n"
+            f"将把 {movable} 份已确认非发票附件移入「{self.config.invoice.non_invoice_dir_name}」目录。\n"
             "无法识别或需 OCR 的文件保留在待处理中。继续？",
         )
         if reply != QMessageBox.Yes:

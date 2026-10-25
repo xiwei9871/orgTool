@@ -52,7 +52,7 @@ class InvoicePage(QWidget):
         self.view_pdf_button = QPushButton("查看PDF")
         self.import_button = QPushButton("导入PDF")
         self.open_pending_button = QPushButton("打开待处理目录")
-        self.open_review_button = QPushButton("打开待审核目录")
+        self.open_review_button = QPushButton("打开非发票目录")
         self.open_archive_button = QPushButton("打开归档目录")
         self.open_month_button = QPushButton("打开月份目录")
         self.open_report_button = QPushButton("打开报表目录")

@@ -555,7 +555,7 @@ class InvoiceService:
         same name gets a numeric suffix.  ``.source.json`` sidecars
         move with their PDF.  Returns per-file results.
         """
-        review_dir = Path(config.root_dir) / "待审核附件"
+        review_dir = Path(config.root_dir) / config.non_invoice_dir_name
         review_dir.mkdir(parents=True, exist_ok=True)
         moved: list[str] = []
         merged: list[str] = []
