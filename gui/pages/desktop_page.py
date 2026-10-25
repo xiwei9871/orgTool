@@ -11,6 +11,7 @@ from PySide6.QtWidgets import (
 )
 
 from gui.models.preview_table_model import PreviewTableModel
+from gui.widgets.editable_path_row import EditablePathRow
 from gui.widgets.path_selector import PathSelector
 from gui.widgets.summary_cards import SummaryCards
 
@@ -20,7 +21,7 @@ class DesktopPage(QWidget):
 
     def __init__(self) -> None:
         super().__init__()
-        self.desktop_path = PathSelector("当前桌面路径:")
+        self.desktop_path = EditablePathRow("扫描路径:")
         self.archive_path = PathSelector("当前归档目录:")
         self.summary_cards = SummaryCards()
 

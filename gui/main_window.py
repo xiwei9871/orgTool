@@ -93,6 +93,9 @@ class MainWindow(QMainWindow):
         self.invoice_page.open_report_button.clicked.connect(self.open_invoice_reports)
         self.invoice_page.open_month_button.clicked.connect(self.open_current_invoice_month)
         self.invoice_page.open_root_button.clicked.connect(self.open_invoice_root)
+        self.invoice_page.open_pending_button.clicked.connect(self.open_invoice_pending)
+        self.invoice_page.open_review_button.clicked.connect(self.open_invoice_review)
+        self.invoice_page.open_archive_button.clicked.connect(self.open_invoice_archive)
 
         panel = self.invoice_page.mail_panel
         panel.add_button.clicked.connect(self.add_mail_account)
@@ -115,6 +118,7 @@ class MainWindow(QMainWindow):
             str(self.desktop_root / self.config.general.archive_root_name)
         )
         self.invoice_page.invoice_root_path.set_value(self.config.invoice.root_dir)
+        self._update_invoice_dir_stats()
 
     # ------------------------------------------------------------------
     # Background task plumbing
@@ -488,6 +492,48 @@ class MainWindow(QMainWindow):
         root_dir.mkdir(parents=True, exist_ok=True)
         open_in_file_explorer(root_dir)
 
+    def _invoice_subdir(self, name: str) -> Path:
+        return Path(self.config.invoice.root_dir) / name
+
+    def open_invoice_pending(self) -> None:
+        path = self._invoice_subdir(self.config.invoice.pending_dir_name)
+        path.mkdir(parents=True, exist_ok=True)
+        open_in_file_explorer(path)
+
+    def open_invoice_review(self) -> None:
+        path = self._invoice_subdir("待审核附件")
+        path.mkdir(parents=True, exist_ok=True)
+        open_in_file_explorer(path)
+
+    def open_invoice_archive(self) -> None:
+        path = self._invoice_subdir(self.config.invoice.monthly_dir_name)
+        path.mkdir(parents=True, exist_ok=True)
+        open_in_file_explorer(path)
+
+    def _update_invoice_dir_stats(self) -> None:
+        """Show per-subdirectory file counts without opening Finder."""
+        root = Path(self.config.invoice.root_dir)
+        cfg = self.config.invoice
+
+        def count(path: Path, pattern: str = "*") -> int:
+            if not path.exists():
+                return 0
+            return sum(
+                1
+                for p in path.rglob(pattern)
+                if p.is_file() and not p.name.endswith(".source.json")
+            )
+
+        pending = count(self._invoice_subdir(cfg.pending_dir_name))
+        review = count(self._invoice_subdir("待审核附件"))
+        archive = count(self._invoice_subdir(cfg.monthly_dir_name))
+        reports = count(self._invoice_subdir(cfg.report_dir_name), "*.xlsx")
+        raw = count(self._invoice_subdir("邮件原始附件"))
+        self.invoice_page.dir_stats_label.setText(
+            f"目录统计: 待处理 {pending} | 待审核 {review} | "
+            f"已归档 {archive} | 报表 {reports} | 邮件原始附件 {raw}"
+        )
+
     def open_current_invoice_month(self) -> None:
         month_root = Path(self.config.invoice.root_dir) / self.config.invoice.monthly_dir_name
         month_root.mkdir(parents=True, exist_ok=True)
@@ -520,6 +566,17 @@ class MainWindow(QMainWindow):
     # Desktop organization actions
 
     def scan_desktop(self, on_done: Callable[[], None] | None = None) -> None:
+        # The scan path is editable on the desktop page — pick it up and
+        # persist it so organizing a subdirectory (or another folder) is
+        # a first-class flow, not a hardcoded whole-desktop scan.
+        typed = self.desktop_page.desktop_path.text().strip()
+        if typed:
+            chosen = Path(typed).expanduser()
+            if chosen != self.desktop_root:
+                self.desktop_root = chosen
+                self.config.general.desktop_path = str(chosen)
+                self.config_manager.save(self.config)
+                self._refresh_path_labels()
         if not self.desktop_root.exists():
             message = f"桌面路径不存在: {self.desktop_root}"
             QMessageBox.warning(self, "桌面路径不可用", message)
@@ -628,6 +685,7 @@ class MainWindow(QMainWindow):
             self.invoice_page.summary_cards.set_counts(
                 len(items), len(items), 0
             )
+            self._update_invoice_dir_stats()
             self.app_status_bar.set_message("发票扫描完成")
             if on_done is not None:
                 on_done()

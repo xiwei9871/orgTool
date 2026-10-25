@@ -118,7 +118,7 @@ def test_main_window_scan_desktop_handles_missing_path_gracefully(
     monkeypatch.setattr(main_window_module.QMessageBox, "warning", lambda *args: None)
 
     window = MainWindow()
-    window.desktop_root = tmp_path / "missing-desktop"
+    window.desktop_page.desktop_path.set_value(str(tmp_path / "missing-desktop"))
 
     window.scan_desktop()
 
@@ -371,7 +371,111 @@ def test_undo_desktop_runs_in_background(tmp_path: Path, monkeypatch) -> None:
     window = MainWindow()
     window.undo_desktop()
 
+    # Wait until the whole undo→rescan chain has applied — otherwise the
+    # deferred apply() can pop a real QMessageBox after this test's
+    # monkeypatches revert and block the next test's event pump.
     _pump_until(
-        lambda: "撤销" in window.app_status_bar.message_label.text()
-        or "扫描" in window.app_status_bar.message_label.text()
+        lambda: "撤销操作已完成" in window.app_status_bar.message_label.text()
+        or "扫描完成" in window.app_status_bar.message_label.text()
     )
+
+
+def test_desktop_scan_uses_editable_path_and_persists(
+    tmp_path: Path, monkeypatch
+) -> None:
+    """Typing a subdirectory into the scan path field must drive the scan."""
+    _app()
+    config = AppConfig()
+    desktop = tmp_path / "desktop"
+    subdir = desktop / "发票管理"
+    subdir.mkdir(parents=True)
+    (subdir / "note.txt").write_text("x", encoding="utf-8")
+    runtime_paths = RuntimePaths(
+        root=tmp_path / "runtime",
+        config_file=tmp_path / "runtime" / "config.json",
+        logs_dir=tmp_path / "runtime" / "logs",
+        tasks_dir=tmp_path / "runtime" / "tasks",
+        invoice_metadata_dir=tmp_path / "runtime" / "invoice_metadata",
+    )
+    runtime_paths.ensure_dirs()
+    saved: list[AppConfig] = []
+    fake_manager = SimpleNamespace(
+        load=lambda: config,
+        save=lambda updated: saved.append(updated) or updated,
+        paths=runtime_paths,
+    )
+    monkeypatch.setattr(
+        main_window_module.ConfigManager,
+        "for_app",
+        classmethod(lambda cls: fake_manager),
+    )
+    monkeypatch.setattr(
+        main_window_module, "resolve_desktop_directory", lambda: desktop
+    )
+
+    window = MainWindow()
+    window.desktop_page.desktop_path.set_value(str(subdir))
+
+    window.scan_desktop()
+    _pump_until(lambda: window.desktop_scan_result is not None)
+
+    assert window.desktop_root == subdir
+    assert saved and saved[-1].general.desktop_path == str(subdir)
+    names = [Path(item.path).name for item in window.desktop_scan_result]
+    assert "note.txt" in names
+
+
+def test_invoice_dir_stats_and_folder_buttons(
+    tmp_path: Path, monkeypatch
+) -> None:
+    """Invoice page shows per-subdir counts and folder open targets exist."""
+    _app()
+    config = AppConfig()
+    config.general.desktop_path = str(tmp_path / "desktop")
+    inv_root = tmp_path / "发票管理"
+    for name, n_files in (
+        ("发票归档_待处理", 3),
+        ("待审核附件", 2),
+        ("按月份归档", 5),
+        ("导出报表", 0),
+        ("邮件原始附件", 7),
+    ):
+        d = inv_root / name
+        d.mkdir(parents=True)
+        for i in range(n_files):
+            (d / f"f{i}.pdf").write_text("x", encoding="utf-8")
+    (inv_root / "导出报表" / "台账.xlsx").write_text("x", encoding="utf-8")
+    config.invoice.root_dir = str(inv_root)
+    runtime_paths = RuntimePaths(
+        root=tmp_path / "runtime",
+        config_file=tmp_path / "runtime" / "config.json",
+        logs_dir=tmp_path / "runtime" / "logs",
+        tasks_dir=tmp_path / "runtime" / "tasks",
+        invoice_metadata_dir=tmp_path / "runtime" / "invoice_metadata",
+    )
+    runtime_paths.ensure_dirs()
+    fake_manager = SimpleNamespace(
+        load=lambda: config, save=lambda updated: updated, paths=runtime_paths
+    )
+    monkeypatch.setattr(
+        main_window_module.ConfigManager,
+        "for_app",
+        classmethod(lambda cls: fake_manager),
+    )
+
+    opened: list[str] = []
+    monkeypatch.setattr(
+        main_window_module, "open_in_file_explorer", lambda p: opened.append(str(p))
+    )
+
+    window = MainWindow()
+    text = window.invoice_page.dir_stats_label.text()
+    assert "待处理 3" in text and "待审核 2" in text
+    assert "已归档 5" in text and "报表 1" in text and "邮件原始附件 7" in text
+
+    window.invoice_page.open_pending_button.click()
+    window.invoice_page.open_review_button.click()
+    window.invoice_page.open_archive_button.click()
+    assert opened[-3].endswith("发票归档_待处理")
+    assert opened[-2].endswith("待审核附件")
+    assert opened[-1].endswith("按月份归档")
