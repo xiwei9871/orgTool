@@ -1,20 +1,31 @@
 {
   "generated_at": "2026-10-25",
   "baseline_commit": "4c1def4",
+  "phases": {
+    "s1_cross_platform": {
+      "status": "PASS",
+      "scope": "macOS runtime + GUI + build verified locally; Windows via CI"
+    },
+    "s2_netease_mail": {
+      "status": "PENDING_LIVE_VALIDATION",
+      "scope": "87 automated mail tests pass against a controllable fake IMAP server; real NetEase account loop still required before PASS"
+    }
+  },
   "environments": [
     {
       "os": "macOS",
       "version": "Darwin 25.6.0 (arm64)",
       "python": "3.14.7",
-      "command": ".venv/bin/python -m pytest -q",
+      "command": "QT_QPA_PLATFORM=offscreen .venv/bin/python -m pytest tests/ -q",
       "result": {
-        "passed": 93,
+        "passed": 180,
         "failed": 0,
         "skipped": 1,
         "not_run": 0
       },
       "gui_launch": "PASS",
-      "build_artifact": "PENDING_MANUAL",
+      "build_artifact": "PASS",
+      "build_notes": "dist/DesktopSmartOrganizer.app + -macos.zip; adhoc signed, not notarized",
       "notes": "skipped = win32-only APPDATA test; baseline was 52 passed / 1 failed"
     },
     {
@@ -32,5 +43,27 @@
       "build_artifact": "PENDING_CI",
       "notes": "awaiting CI run on pushed branch"
     }
-  ]
+  ],
+  "mail_test_breakdown": {
+    "tests/mail + tests/services/test_mail_service.py + tests/gui/test_mail_gui.py": {
+      "passed": 87,
+      "failed": 0,
+      "skipped": 0
+    },
+    "fake_imap_server": "real TCP IMAP4rev1 with fault injection (require_id/fail_id/fail_login/fail_select/history_limit/abort_fetch/reject_fetch)"
+  },
+  "live_validation": {
+    "netease_imap": "PENDING_LIVE_VALIDATION",
+    "required_loop": [
+      "connect+authenticate with authorization code",
+      "list folders",
+      "select target folder",
+      "search history",
+      "download a real PDF attachment",
+      "rerun -> no duplicates",
+      "interrupt and resume",
+      "receive new PDF mail -> poll downloads it",
+      "PDF visible in invoice scan"
+    ]
+  }
 }

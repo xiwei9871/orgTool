@@ -9,6 +9,7 @@ from typing import Any, TypeVar
 
 from config.defaults import DEFAULT_APP_NAME
 from config.schema import AppConfig, DesktopConfig, GeneralConfig, InvoiceConfig
+from mail.models import MailConfig
 from utils.paths import RuntimePaths
 
 T = TypeVar("T")
@@ -35,6 +36,7 @@ class ConfigManager:
             general=_merge_dataclass(GeneralConfig(), data.get("general", {})),
             desktop=_merge_dataclass(DesktopConfig(), data.get("desktop", {})),
             invoice=_merge_dataclass(InvoiceConfig(), data.get("invoice", {})),
+            mail=MailConfig.from_dict(data.get("mail", {})),
         )
 
     def save(self, config: AppConfig) -> Path:
