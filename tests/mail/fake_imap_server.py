@@ -42,6 +42,7 @@ class FakeMessage:
     message_id: str = ""
     body_text: str = "hello"
     attachments: list[FakeAttachment] = field(default_factory=list)
+    unseen: bool = False
 
     def header_block(self) -> bytes:
         lines = [
@@ -126,7 +127,13 @@ class FakeFolder:
     name: str
     uidvalidity: int = 1001
     messages: list[FakeMessage] = field(default_factory=list)
-    unseen: int = 0
+    unseen: int | None = None
+
+    @property
+    def unseen_count(self) -> int:
+        if self.unseen is not None:
+            return self.unseen
+        return sum(1 for m in self.messages if m.unseen)
 
     def by_uid(self, uid: int) -> FakeMessage | None:
         for message in self.messages:
@@ -303,7 +310,7 @@ class FakeImapServer:
             else:
                 conn.sendall(
                     f'* STATUS "{encode_imap_utf7(folder.name)}" '
-                    f"(MESSAGES {len(folder.messages)} UNSEEN {folder.unseen} RECENT 0)\r\n".encode(
+                    f"(MESSAGES {len(folder.messages)} UNSEEN {folder.unseen_count} RECENT 0)\r\n".encode(
                         "utf-8"
                     )
                 )
@@ -327,6 +334,9 @@ class FakeImapServer:
             return
         uids = [m.uid for m in folder.messages]
         tokens = criteria.upper().split()
+        if "UNSEEN" in tokens:
+            unseen = {m.uid for m in folder.messages if m.unseen}
+            uids = [u for u in uids if u in unseen]
         if "UID" in tokens:
             index = tokens.index("UID")
             low = tokens[index + 1].split(":")[0]
