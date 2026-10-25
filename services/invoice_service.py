@@ -19,6 +19,7 @@ from invoice.metadata_store import InvoiceMetadataStore
 from invoice.parser import InvoiceParser
 from invoice.pdf_text_extractor import PdfTextExtractor
 from invoice.scanner import InvoiceScanner
+from mail.importer import load_source_sidecar
 from models.invoice import InvoicePreviewItem, InvoiceRecord
 from models.task import TaskItemRecord, TaskRecord
 from utils.file_hash import compute_file_hash
@@ -79,6 +80,7 @@ class InvoiceService:
                 file_hash=compute_file_hash(path, config.hash_algorithm),
                 modified_at=modified_time_for(path),
             )
+            self._attach_mail_source(record, path)
             duplicate_result = self.deduplicator.check(record)
             plan = self.archive_planner.plan(record, duplicate_result.status, config)
 
@@ -116,6 +118,26 @@ class InvoiceService:
             )
 
         return preview_items
+
+    def _attach_mail_source(self, record: InvoiceRecord, path: Path) -> None:
+        """Attach mail provenance from a ``.source.json`` sidecar if present."""
+        source = load_source_sidecar(path)
+        if source is None:
+            return
+        record.source_type = "mail"
+        record.notes.append(
+            "邮箱:{account} 文件夹:{folder} UID:{uid} 主题:{subject} "
+            "发件人:{sender} 收件时间:{date} 附件:{attachment} 下载:{downloaded}".format(
+                account=source.get("account_email", ""),
+                folder=source.get("folder", ""),
+                uid=source.get("uid", ""),
+                subject=source.get("subject", ""),
+                sender=source.get("sender", ""),
+                date=source.get("message_date", ""),
+                attachment=source.get("attachment_name", ""),
+                downloaded=source.get("downloaded_at", ""),
+            )
+        )
 
     def execute_preview(
         self,
@@ -163,6 +185,11 @@ class InvoiceService:
 
             try:
                 shutil.move(str(source), str(target))
+                source_sidecar = Path(str(source) + ".source.json")
+                if source_sidecar.exists():
+                    shutil.move(
+                        str(source_sidecar), str(target) + ".source.json"
+                    )
                 moved_count += 1
                 preview.record.file_path = str(target)
                 task.items.append(

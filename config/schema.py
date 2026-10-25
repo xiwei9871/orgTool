@@ -9,6 +9,7 @@ from config.defaults import (
     DEFAULT_GENERAL_CONFIG,
     DEFAULT_INVOICE_CONFIG,
 )
+from mail.models import MailConfig
 
 
 @dataclass(slots=True)
@@ -66,6 +67,7 @@ class AppConfig:
     general: GeneralConfig = field(default_factory=GeneralConfig)
     desktop: DesktopConfig = field(default_factory=DesktopConfig)
     invoice: InvoiceConfig = field(default_factory=InvoiceConfig)
+    mail: MailConfig = field(default_factory=MailConfig)
 
     def to_dict(self) -> dict[str, object]:
         """Convert the configuration tree into JSON-serializable data."""

@@ -11,6 +11,7 @@ from PySide6.QtWidgets import (
 )
 
 from gui.models.invoice_table_model import InvoiceTableModel
+from gui.pages.mail_panel import MailSyncPanel
 from gui.widgets.path_selector import PathSelector
 from gui.widgets.summary_cards import SummaryCards
 
@@ -21,6 +22,7 @@ class InvoicePage(QWidget):
     def __init__(self) -> None:
         super().__init__()
         self.invoice_root_path = PathSelector("发票主目录:")
+        self.mail_panel = MailSyncPanel()
         self.summary_cards = SummaryCards()
 
         self.scan_button = QPushButton("扫描待处理发票")
@@ -48,6 +50,7 @@ class InvoicePage(QWidget):
 
         layout = QVBoxLayout(self)
         layout.addWidget(self.invoice_root_path)
+        layout.addWidget(self.mail_panel)
         layout.addLayout(button_row)
         layout.addWidget(self.summary_cards)
         layout.addWidget(self.table_view)
