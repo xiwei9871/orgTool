@@ -22,6 +22,7 @@ class InvoiceRecord:
     source_type: str = "pdf"
     doc_type: str = ""
     field_sources: dict = field(default_factory=dict)
+    review_fields: list[str] = field(default_factory=list)
     recognition_status: str = "pending"
     date_source: str = ""
     notes: list[str] = field(default_factory=list)

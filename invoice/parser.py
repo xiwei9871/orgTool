@@ -96,6 +96,23 @@ class InvoiceParser:
             label_text, file_path.name
         )
 
+        # Field-level review flags: auxiliary fields that are missing or
+        # only weakly evidenced stay visible to the reviewer even when
+        # the core fields already qualify the invoice as complete.
+        review_fields: list[str] = []
+        if not buyer:
+            review_fields.append("buyer")
+        if not seller:
+            review_fields.append("seller")
+        if tax_amount is None:
+            review_fields.append("tax")
+        if sources["number"] == "fallback":
+            review_fields.append("number")
+        if sources["date"] == "fallback":
+            review_fields.append("date")
+        if amount is not None and sources["amount"] == "fallback":
+            review_fields.append("amount")
+
         recognition_status = (
             "complete"
             if invoice_number
@@ -119,6 +136,7 @@ class InvoiceParser:
             buyer=buyer,
             tax_amount=tax_amount,
             recognition_status=recognition_status,
+            review_fields=review_fields,
             date_source=(
                 "content"
                 if sources["date"] in ("label", "label_window", "dzfp_block")
@@ -277,15 +295,17 @@ def _extract_total_amount(
             heji.group(2)
         )
     else:
-        # Any adjacent ¥net ¥tax pair (before or after the 大写/total).
+        # Any adjacent net+tax pair — ¥ may sit before or after digits
+        # ("¥87.61 ¥11.39" and "46.23¥ 2.77¥" both occur).
         pair = re.search(
-            r"[¥￥]\s*([0-9]+\.[0-9]{1,2})\s*[¥￥]\s*([0-9]+\.[0-9]{1,2})",
+            r"(?:[¥￥]\s*([0-9]+\.[0-9]{1,2})|([0-9]+\.[0-9]{1,2})\s*[¥￥])"
+            r"\s+"
+            r"(?:[¥￥]\s*([0-9]+\.[0-9]{1,2})|([0-9]+\.[0-9]{1,2})\s*[¥￥])",
             text,
         )
         if pair:
-            detail["net"], detail["tax"] = float(pair.group(1)), float(
-                pair.group(2)
-            )
+            nums = [g for g in pair.groups() if g is not None]
+            detail["net"], detail["tax"] = float(nums[0]), float(nums[1])
 
     # 1a) Direct label adjacency: 价税合计[:：] N  or  （小写） N.
     # A digit separated only by spaces around the match means the PDF
@@ -345,30 +365,59 @@ def _extract_tax_amount(
     return None, ""
 
 
+# Words that must never be captured as a party name — they are labels
+# or field titles, not organizations.
+_PARTY_LABEL_WORDS = (
+    "名称", "信息", "信用代码", "纳税人", "识别号", "购买方", "销售方",
+    "开票", "日期", "价税", "合计", "备注", "项目", "发票", "地址",
+    "电话", "开户", "账号", "银行", "明细", "规格", "单价", "税率",
+)
+
+_ORG_NAME = (
+    r"[一-龥（）()A-Za-z]{4,40}"
+    r"(?:有限公司|公司|中心|事务所|酒店|商场|超市|经营部|工作室|集团|部|社|院|厂|店)"
+)
+_TAXID = r"[0-9A-Z]{15,20}"
+
+
+def _valid_party_name(name: str) -> str:
+    """Return the name cleaned, or '' when it is actually a label."""
+    name = name.strip(" ：:，,;；")
+    if len(name) < 4:
+        return ""
+    if any(w in name for w in _PARTY_LABEL_WORDS):
+        return ""
+    return name
+
+
 def _extract_parties(
     text: str, filename: str
 ) -> tuple[str, str, str, str]:
-    """Extract buyer/seller from 名称： value pairs.
+    """Extract buyer/seller as ordered organization names.
 
-    On 数电票 the values block emits buyer name+税号 first, then seller —
-    matching observed layouts.  Confidence upgrades when one party name
-    also appears in the filename (dzfp_<num>_<buyer>_<ts>.pdf).
+    Real layouts seen: (a) `名称： <name> 统一社会信用代码… <taxid>`
+    pairs, (b) a values block emitting `<buyer> <seller> <taxid>…` or
+    `<name> <taxid>` pairs, (c) `<buyer> <seller> <taxid1> <taxid2>`.
+    In every observed layout the first organization name is the buyer
+    and the second is the seller.  When fewer than two names can be
+    identified the fields stay empty and get flagged for review —
+    never guess from nearby text.
     """
-    pairs = re.findall(
-        r"名 称\s*[:：]\s*([^\s名]+?)\s*"
-        r"(?:统一社会信用代码|纳税人识别号)[:：/]*\s*([0-9A-Z]{15,20})?",
-        text,
+    tokens = re.finditer(
+        rf"({_ORG_NAME})|({_TAXID})", text
     )
-    names = [n for n, _ in pairs if n]
-    if not names:
-        # values-block form: two "公司 税号" pairs before the amounts
-        m = re.findall(
-            r"([一-龥]{4,30}?(?:公司|中心|事务所|部))\s+([0-9A-Z]{15,20})",
-            text,
-        )
-        names = [n for n, _ in m]
-    buyer = names[0] if names else ""
-    seller = names[1] if len(names) > 1 else ""
+    names: list[str] = []
+    for m in tokens:
+        if m.group(1) is None:
+            continue
+        name = _valid_party_name(m.group(1))
+        if name and name not in names:
+            names.append(name)
+        if len(names) >= 2:
+            break
+
+    buyer = names[0] if len(names) >= 2 else ""
+    seller = names[1] if len(names) >= 2 else ""
     if not buyer and not seller:
         return "", "", "", ""
     if buyer and buyer in filename:

@@ -1,0 +1,733 @@
+{
+ "schema": "redacted",
+ "rows": [
+  {
+   "id": "inv_01",
+   "amount": 99.0,
+   "tax_present": true,
+   "buyer_present": true,
+   "seller_present": true,
+   "buyer_ref": "ORG_A",
+   "seller_ref": "ORG_B",
+   "content": "*茶*陈皮",
+   "sources": {
+    "number": "dzfp_block",
+    "date": "dzfp_block",
+    "content": "label_window",
+    "amount": "verified",
+    "tax": "label_window",
+    "buyer": "order_pair",
+    "seller": "order_pair"
+   },
+   "core_ok": {
+    "number": true,
+    "date": true,
+    "amount": true
+   },
+   "status": "complete",
+   "review_fields": []
+  },
+  {
+   "id": "inv_02",
+   "amount": 720.0,
+   "tax_present": true,
+   "buyer_present": true,
+   "seller_present": true,
+   "buyer_ref": "ORG_A",
+   "seller_ref": "ORG_C",
+   "content": "*生产生活服务*餐饮费",
+   "sources": {
+    "number": "filename_verified",
+    "date": "dzfp_block",
+    "content": "label_window",
+    "amount": "verified",
+    "tax": "label_window",
+    "buyer": "order_pair",
+    "seller": "order_pair"
+   },
+   "core_ok": {
+    "number": true,
+    "date": true,
+    "amount": true
+   },
+   "status": "complete",
+   "review_fields": []
+  },
+  {
+   "id": "inv_03",
+   "amount": 306.0,
+   "tax_present": true,
+   "buyer_present": true,
+   "seller_present": true,
+   "buyer_ref": "ORG_A",
+   "seller_ref": "ORG_D",
+   "content": "*生产生活服务*餐饮服务",
+   "sources": {
+    "number": "filename_verified",
+    "date": "dzfp_block",
+    "content": "label_window",
+    "amount": "verified",
+    "tax": "label_window",
+    "buyer": "order_pair",
+    "seller": "order_pair"
+   },
+   "core_ok": {
+    "number": true,
+    "date": true,
+    "amount": true
+   },
+   "status": "complete",
+   "review_fields": []
+  },
+  {
+   "id": "inv_04",
+   "amount": 119.0,
+   "tax_present": true,
+   "buyer_present": true,
+   "seller_present": true,
+   "buyer_ref": "ORG_A",
+   "seller_ref": "ORG_E",
+   "content": "*水产加工品*三去黄花鱼",
+   "sources": {
+    "number": "dzfp_block",
+    "date": "dzfp_block",
+    "content": "label_window",
+    "amount": "verified",
+    "tax": "label_window",
+    "buyer": "order_pair",
+    "seller": "order_pair"
+   },
+   "core_ok": {
+    "number": true,
+    "date": true,
+    "amount": true
+   },
+   "status": "complete",
+   "review_fields": []
+  },
+  {
+   "id": "inv_05",
+   "amount": 49.0,
+   "tax_present": true,
+   "buyer_present": true,
+   "seller_present": true,
+   "buyer_ref": "ORG_A",
+   "seller_ref": "ORG_F",
+   "content": "*生产生活服务*其他软件",
+   "sources": {
+    "number": "label_window",
+    "date": "dzfp_block",
+    "content": "label_window",
+    "amount": "verified",
+    "tax": "label_window",
+    "buyer": "order_pair",
+    "seller": "order_pair"
+   },
+   "core_ok": {
+    "number": true,
+    "date": true,
+    "amount": true
+   },
+   "status": "complete",
+   "review_fields": []
+  },
+  {
+   "id": "inv_06",
+   "amount": 310.0,
+   "tax_present": true,
+   "buyer_present": true,
+   "seller_present": true,
+   "buyer_ref": "ORG_A",
+   "seller_ref": "ORG_G",
+   "content": "*生产生活服务*租车费",
+   "sources": {
+    "number": "dzfp_block",
+    "date": "dzfp_block",
+    "content": "label_window",
+    "amount": "verified",
+    "tax": "label_window",
+    "buyer": "order_pair",
+    "seller": "order_pair"
+   },
+   "core_ok": {
+    "number": true,
+    "date": true,
+    "amount": true
+   },
+   "status": "complete",
+   "review_fields": []
+  },
+  {
+   "id": "inv_07",
+   "amount": 461.44,
+   "tax_present": true,
+   "buyer_present": true,
+   "seller_present": true,
+   "buyer_ref": "ORG_A",
+   "seller_ref": "ORG_H",
+   "content": "*生产生活服务*出行服务",
+   "sources": {
+    "number": "dzfp_block",
+    "date": "dzfp_block",
+    "content": "label_window",
+    "amount": "verified",
+    "tax": "label_window",
+    "buyer": "order_pair",
+    "seller": "order_pair"
+   },
+   "core_ok": {
+    "number": true,
+    "date": true,
+    "amount": true
+   },
+   "status": "complete",
+   "review_fields": []
+  },
+  {
+   "id": "inv_08",
+   "amount": 336.0,
+   "tax_present": true,
+   "buyer_present": true,
+   "seller_present": true,
+   "buyer_ref": "ORG_A",
+   "seller_ref": "ORG_I",
+   "content": "*生产生活服务*租车费",
+   "sources": {
+    "number": "dzfp_block",
+    "date": "dzfp_block",
+    "content": "label_window",
+    "amount": "verified",
+    "tax": "label_window",
+    "buyer": "order_pair",
+    "seller": "order_pair"
+   },
+   "core_ok": {
+    "number": true,
+    "date": true,
+    "amount": true
+   },
+   "status": "complete",
+   "review_fields": []
+  },
+  {
+   "id": "inv_09",
+   "amount": 189.98,
+   "tax_present": true,
+   "buyer_present": true,
+   "seller_present": true,
+   "buyer_ref": "ORG_A",
+   "seller_ref": "ORG_H",
+   "content": "*生产生活服务*出行服务",
+   "sources": {
+    "number": "dzfp_block",
+    "date": "dzfp_block",
+    "content": "label_window",
+    "amount": "verified",
+    "tax": "label_window",
+    "buyer": "order_pair",
+    "seller": "order_pair"
+   },
+   "core_ok": {
+    "number": true,
+    "date": true,
+    "amount": true
+   },
+   "status": "complete",
+   "review_fields": []
+  },
+  {
+   "id": "inv_12",
+   "amount": 763.3,
+   "tax_present": true,
+   "buyer_present": true,
+   "seller_present": true,
+   "buyer_ref": "ORG_A",
+   "seller_ref": "ORG_J",
+   "content": "*生产生活服务*住宿费",
+   "sources": {
+    "number": "filename_verified",
+    "date": "dzfp_block",
+    "content": "label_window",
+    "amount": "verified",
+    "tax": "label_window",
+    "buyer": "filename_verified",
+    "seller": "order_pair"
+   },
+   "core_ok": {
+    "number": true,
+    "date": true,
+    "amount": true
+   },
+   "status": "complete",
+   "review_fields": []
+  },
+  {
+   "id": "inv_13",
+   "amount": 492.15,
+   "tax_present": true,
+   "buyer_present": true,
+   "seller_present": true,
+   "buyer_ref": "ORG_A",
+   "seller_ref": "ORG_K",
+   "content": "*生产生活服务*住宿费",
+   "sources": {
+    "number": "filename_verified",
+    "date": "dzfp_block",
+    "content": "label_window",
+    "amount": "verified",
+    "tax": "label_window",
+    "buyer": "filename_verified",
+    "seller": "order_pair"
+   },
+   "core_ok": {
+    "number": true,
+    "date": true,
+    "amount": true
+   },
+   "status": "complete",
+   "review_fields": []
+  },
+  {
+   "id": "inv_14",
+   "amount": 347.65,
+   "tax_present": true,
+   "buyer_present": true,
+   "seller_present": true,
+   "buyer_ref": "ORG_A",
+   "seller_ref": "ORG_L",
+   "content": "*生产生活服务*住宿费",
+   "sources": {
+    "number": "filename_verified",
+    "date": "dzfp_block",
+    "content": "label_window",
+    "amount": "verified",
+    "tax": "label_window",
+    "buyer": "filename_verified",
+    "seller": "order_pair"
+   },
+   "core_ok": {
+    "number": true,
+    "date": true,
+    "amount": true
+   },
+   "status": "complete",
+   "review_fields": []
+  },
+  {
+   "id": "inv_15",
+   "amount": 339.15,
+   "tax_present": true,
+   "buyer_present": true,
+   "seller_present": true,
+   "buyer_ref": "ORG_A",
+   "seller_ref": "ORG_M",
+   "content": "*生产生活服务*住宿费",
+   "sources": {
+    "number": "filename_verified",
+    "date": "dzfp_block",
+    "content": "label_window",
+    "amount": "verified",
+    "tax": "label_window",
+    "buyer": "filename_verified",
+    "seller": "order_pair"
+   },
+   "core_ok": {
+    "number": true,
+    "date": true,
+    "amount": true
+   },
+   "status": "complete",
+   "review_fields": []
+  },
+  {
+   "id": "inv_16",
+   "amount": 262.65,
+   "tax_present": true,
+   "buyer_present": true,
+   "seller_present": true,
+   "buyer_ref": "ORG_A",
+   "seller_ref": "ORG_N",
+   "content": "*生产生活服务*住宿费",
+   "sources": {
+    "number": "filename_verified",
+    "date": "dzfp_block",
+    "content": "label_window",
+    "amount": "verified",
+    "tax": "label_window",
+    "buyer": "filename_verified",
+    "seller": "order_pair"
+   },
+   "core_ok": {
+    "number": true,
+    "date": true,
+    "amount": true
+   },
+   "status": "complete",
+   "review_fields": []
+  },
+  {
+   "id": "inv_17",
+   "amount": 313.65,
+   "tax_present": true,
+   "buyer_present": true,
+   "seller_present": true,
+   "buyer_ref": "ORG_A",
+   "seller_ref": "ORG_O",
+   "content": "*生产生活服务*住宿费",
+   "sources": {
+    "number": "filename_verified",
+    "date": "dzfp_block",
+    "content": "label_window",
+    "amount": "verified",
+    "tax": "label_window",
+    "buyer": "filename_verified",
+    "seller": "order_pair"
+   },
+   "core_ok": {
+    "number": true,
+    "date": true,
+    "amount": true
+   },
+   "status": "complete",
+   "review_fields": []
+  },
+  {
+   "id": "inv_18",
+   "amount": 169.0,
+   "tax_present": true,
+   "buyer_present": true,
+   "seller_present": true,
+   "buyer_ref": "ORG_A",
+   "seller_ref": "ORG_P",
+   "content": "*熟肉制品*鸡血300g",
+   "sources": {
+    "number": "filename_verified",
+    "date": "dzfp_block",
+    "content": "label_window",
+    "amount": "verified",
+    "tax": "label_window",
+    "buyer": "filename_verified",
+    "seller": "order_pair"
+   },
+   "core_ok": {
+    "number": true,
+    "date": true,
+    "amount": true
+   },
+   "status": "complete",
+   "review_fields": []
+  },
+  {
+   "id": "inv_19",
+   "amount": 313.65,
+   "tax_present": true,
+   "buyer_present": true,
+   "seller_present": true,
+   "buyer_ref": "ORG_A",
+   "seller_ref": "ORG_Q",
+   "content": "*生产生活服务*住宿费",
+   "sources": {
+    "number": "filename_verified",
+    "date": "dzfp_block",
+    "content": "label_window",
+    "amount": "verified",
+    "tax": "label_window",
+    "buyer": "filename_verified",
+    "seller": "order_pair"
+   },
+   "core_ok": {
+    "number": true,
+    "date": true,
+    "amount": true
+   },
+   "status": "complete",
+   "review_fields": []
+  },
+  {
+   "id": "inv_20",
+   "amount": 610.3,
+   "tax_present": true,
+   "buyer_present": true,
+   "seller_present": true,
+   "buyer_ref": "ORG_A",
+   "seller_ref": "ORG_R",
+   "content": "*生产生活服务*住宿费",
+   "sources": {
+    "number": "filename_verified",
+    "date": "dzfp_block",
+    "content": "label_window",
+    "amount": "verified",
+    "tax": "label_window",
+    "buyer": "filename_verified",
+    "seller": "order_pair"
+   },
+   "core_ok": {
+    "number": true,
+    "date": true,
+    "amount": true
+   },
+   "status": "complete",
+   "review_fields": []
+  },
+  {
+   "id": "inv_21",
+   "amount": 118.75,
+   "tax_present": true,
+   "buyer_present": true,
+   "seller_present": true,
+   "buyer_ref": "ORG_A",
+   "seller_ref": "ORG_S",
+   "content": "*茶*茶叶",
+   "sources": {
+    "number": "filename_verified",
+    "date": "dzfp_block",
+    "content": "label_window",
+    "amount": "verified",
+    "tax": "label_window",
+    "buyer": "filename_verified",
+    "seller": "order_pair"
+   },
+   "core_ok": {
+    "number": true,
+    "date": true,
+    "amount": true
+   },
+   "status": "complete",
+   "review_fields": []
+  },
+  {
+   "id": "inv_22",
+   "amount": 262.65,
+   "tax_present": true,
+   "buyer_present": true,
+   "seller_present": true,
+   "buyer_ref": "ORG_A",
+   "seller_ref": "ORG_T",
+   "content": "*生产生活服务*住宿费",
+   "sources": {
+    "number": "filename_verified",
+    "date": "dzfp_block",
+    "content": "label_window",
+    "amount": "verified",
+    "tax": "label_window",
+    "buyer": "filename_verified",
+    "seller": "order_pair"
+   },
+   "core_ok": {
+    "number": true,
+    "date": true,
+    "amount": true
+   },
+   "status": "complete",
+   "review_fields": []
+  },
+  {
+   "id": "inv_25",
+   "amount": 1250.0,
+   "tax_present": true,
+   "buyer_present": true,
+   "seller_present": true,
+   "buyer_ref": "ORG_A",
+   "seller_ref": "ORG_U",
+   "content": "*生产生活服务*代订机票",
+   "sources": {
+    "number": "label_window",
+    "date": "label_window",
+    "content": "label_window",
+    "amount": "verified",
+    "tax": "label_window",
+    "buyer": "order_pair",
+    "seller": "order_pair"
+   },
+   "core_ok": {
+    "number": true,
+    "date": true,
+    "amount": true
+   },
+   "status": "complete",
+   "review_fields": []
+  },
+  {
+   "id": "inv_26",
+   "amount": 78.0,
+   "tax_present": true,
+   "buyer_present": true,
+   "seller_present": true,
+   "buyer_ref": "ORG_A",
+   "seller_ref": "ORG_U",
+   "content": "*生产生活服务*退票费",
+   "sources": {
+    "number": "label_window",
+    "date": "label_window",
+    "content": "label_window",
+    "amount": "verified",
+    "tax": "label_window",
+    "buyer": "order_pair",
+    "seller": "order_pair"
+   },
+   "core_ok": {
+    "number": true,
+    "date": true,
+    "amount": true
+   },
+   "status": "complete",
+   "review_fields": []
+  },
+  {
+   "id": "inv_27",
+   "amount": 1960.0,
+   "tax_present": true,
+   "buyer_present": true,
+   "seller_present": true,
+   "buyer_ref": "ORG_A",
+   "seller_ref": "ORG_U",
+   "content": "*生产生活服务*代订机票",
+   "sources": {
+    "number": "label_window",
+    "date": "label_window",
+    "content": "label_window",
+    "amount": "verified",
+    "tax": "label_window",
+    "buyer": "order_pair",
+    "seller": "order_pair"
+   },
+   "core_ok": {
+    "number": true,
+    "date": true,
+    "amount": true
+   },
+   "status": "complete",
+   "review_fields": []
+  },
+  {
+   "id": "inv_28",
+   "amount": 2060.0,
+   "tax_present": true,
+   "buyer_present": true,
+   "seller_present": true,
+   "buyer_ref": "ORG_A",
+   "seller_ref": "ORG_U",
+   "content": "*生产生活服务*代订机票",
+   "sources": {
+    "number": "label_window",
+    "date": "label_window",
+    "content": "label_window",
+    "amount": "verified",
+    "tax": "label_window",
+    "buyer": "order_pair",
+    "seller": "order_pair"
+   },
+   "core_ok": {
+    "number": true,
+    "date": true,
+    "amount": true
+   },
+   "status": "complete",
+   "review_fields": []
+  },
+  {
+   "id": "inv_29",
+   "amount": 720.0,
+   "tax_present": true,
+   "buyer_present": true,
+   "seller_present": true,
+   "buyer_ref": "ORG_A",
+   "seller_ref": "ORG_U",
+   "content": "*生产生活服务*代订机票",
+   "sources": {
+    "number": "label_window",
+    "date": "label_window",
+    "content": "label_window",
+    "amount": "verified",
+    "tax": "label_window",
+    "buyer": "order_pair",
+    "seller": "order_pair"
+   },
+   "core_ok": {
+    "number": true,
+    "date": true,
+    "amount": true
+   },
+   "status": "complete",
+   "review_fields": []
+  },
+  {
+   "id": "inv_36",
+   "amount": 44.5,
+   "tax_present": true,
+   "buyer_present": true,
+   "seller_present": true,
+   "buyer_ref": "ORG_A",
+   "seller_ref": "ORG_V",
+   "content": "*交通运输服务*客运服",
+   "sources": {
+    "number": "label",
+    "date": "label",
+    "content": "label_window",
+    "amount": "verified",
+    "tax": "label_window",
+    "buyer": "order_pair",
+    "seller": "order_pair"
+   },
+   "core_ok": {
+    "number": true,
+    "date": true,
+    "amount": true
+   },
+   "status": "complete",
+   "review_fields": []
+  },
+  {
+   "id": "inv_37",
+   "amount": 221.7,
+   "tax_present": true,
+   "buyer_present": true,
+   "seller_present": true,
+   "buyer_ref": "ORG_A",
+   "seller_ref": "ORG_W",
+   "content": "*交通运输服务*客运服",
+   "sources": {
+    "number": "label",
+    "date": "label",
+    "content": "label_window",
+    "amount": "verified",
+    "tax": "label_window",
+    "buyer": "order_pair",
+    "seller": "order_pair"
+   },
+   "core_ok": {
+    "number": true,
+    "date": true,
+    "amount": true
+   },
+   "status": "complete",
+   "review_fields": []
+  },
+  {
+   "id": "inv_38",
+   "amount": 29.5,
+   "tax_present": true,
+   "buyer_present": true,
+   "seller_present": true,
+   "buyer_ref": "ORG_A",
+   "seller_ref": "ORG_X",
+   "content": "*交通运输服务*客运服",
+   "sources": {
+    "number": "label",
+    "date": "label",
+    "content": "label_window",
+    "amount": "verified",
+    "tax": "label_window",
+    "buyer": "order_pair",
+    "seller": "order_pair"
+   },
+   "core_ok": {
+    "number": true,
+    "date": true,
+    "amount": true
+   },
+   "status": "complete",
+   "review_fields": []
+  }
+ ]
+}

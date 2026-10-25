@@ -173,8 +173,8 @@ def test_invoice_parser_marks_outlier_amount_for_manual_review(tmp_path: Path) -
 
 
 def test_s3_1_didi_spaced_labels_and_amount_before_currency(tmp_path: Path) -> None:
-    """滴滴 layout: spaced 价税合计 label, amount before ¥, 合计 net+tax."""
-    file_path = tmp_path / "didi.pdf"
+    """Spaced 价税合计 label, amount before ¥, 合计 net+tax (滴滴-style)."""
+    file_path = tmp_path / "ride_invoice.pdf"
     file_path.write_text("fake", encoding="utf-8")
     text = (
         "电子发票（普通发票） 发票号码 : 26317000003669102866 开票日期 : 2026年10月10日 "
@@ -191,15 +191,15 @@ def test_s3_1_didi_spaced_labels_and_amount_before_currency(tmp_path: Path) -> N
 
 
 def test_s3_1_dzfp_values_block_and_parties(tmp_path: Path) -> None:
-    """幔壳 layout: empty labels, values block after 开票人, 大写-adjacent total."""
-    file_path = tmp_path / "dzfp_26352000002308138771_四川幔壳科技有限公司_20261008.pdf"
+    """Empty-label layout: values block after 开票人, 大写-adjacent total."""
+    file_path = tmp_path / "dzfp_26352000002308138771_甲城瑞澜酒店管理有限公司_20261008.pdf"
     file_path.write_text("fake", encoding="utf-8")
     text = (
         "电子发票（普通发票） 发票号码： 开票日期： 购 买 方 信 息 "
         "统一社会信用代码/纳税人识别号： 销 售 方 信 息 名称： 名称： "
         "价税合计（大写） （小写） 开票人： 26352000002308138771 2026年10月08日 "
-        "四川幔壳科技有限公司 91510100MA6C5HHD7T 福建三简茶界科技有限公司 "
-        "91350104MA33FNMH9G ¥87.61 ¥11.39 玖拾玖圆整 ¥99.00 范长妹"
+        "甲城瑞澜酒店管理有限公司 91370000TEST00001A 乙郡恒益食品有限公司 "
+        "91370000TEST00002B ¥87.61 ¥11.39 玖拾玖圆整 ¥99.00 范长妹"
     )
     record = InvoiceParser().parse(
         file_path=file_path, extracted_text=text,
@@ -209,11 +209,31 @@ def test_s3_1_dzfp_values_block_and_parties(tmp_path: Path) -> None:
     assert record.invoice_date == "2026-10-08"
     assert record.amount == 99.00
     assert record.tax_amount == 11.39
-    assert record.buyer == "四川幔壳科技有限公司"
-    assert record.seller == "福建三简茶界科技有限公司"
+    assert record.buyer == "甲城瑞澜酒店管理有限公司"
+    assert record.seller == "乙郡恒益食品有限公司"
     assert record.field_sources["amount"] == "verified"
     assert record.field_sources["number"] == "filename_verified"
     assert record.recognition_status == "complete"
+
+
+def test_s3_1_label_never_becomes_party_name(tmp_path: Path) -> None:
+    """Empty 名称： followed by the taxid label must not yield label-as-name."""
+    file_path = tmp_path / "weird.pdf"
+    file_path.write_text("fake", encoding="utf-8")
+    text = (
+        "电子发票（普通发票） 发票号码：26442000001361572006 开票日期：2026年02月04日 "
+        "购 买 方 信 息 名称： 统一社会信用代码/纳税人识别号：91370000TEST00001A "
+        "价税合计（大写） 壹佰圆整 （小写）¥100.00"
+    )
+    record = InvoiceParser().parse(
+        file_path=file_path, extracted_text=text,
+        file_hash="h", modified_at=datetime(2026, 3, 6),
+    )
+    # single identifiable org name → cannot assign buyer vs seller
+    assert record.buyer == ""
+    assert record.seller == ""
+    assert "buyer" in record.review_fields
+    assert "seller" in record.review_fields
 
 
 def test_s3_1_amount_total_before_daxie(tmp_path: Path) -> None:
