@@ -34,6 +34,15 @@ from services.mail_service import MailService
 from utils.desktop import resolve_desktop_directory
 from utils.shell import open_in_file_explorer
 
+_DOC_TYPE_TEXT = {
+    "e_invoice": "电子发票",
+    "travel_voucher": "行程/报销凭证",
+    "hotel_folio": "酒店结账单",
+    "other_pdf": "其他PDF",
+    "needs_ocr": "需OCR识别",
+    "unknown": "无法识别",
+}
+
 
 class MainWindow(QMainWindow):
     """Top-level application window with desktop and invoice pages."""
@@ -796,7 +805,9 @@ class MainWindow(QMainWindow):
             self.invoice_preview_result = None
             self._update_archive_stats()
             self._refresh_month_combo()
-            self.scan_invoices()
+            # Re-evaluate so archived rows leave the pending list — the
+            # table should now show only the non-archivable remainder.
+            self.evaluate_invoices()
 
         self._start_task(self.invoice_page, "正在执行发票归档…", work, apply)
 
@@ -849,14 +860,15 @@ class MainWindow(QMainWindow):
             )
             target_path = plan.target_path
         reason_texts = [_REASON_TEXT.get(r, r) for r in candidate.reasons]
+        doc_label = _DOC_TYPE_TEXT.get(record.doc_type, record.doc_type)
         if candidate.eligible:
             remark = "可自动归档"
         elif record.doc_type == "e_invoice":
             remark = "需审核: " + "、".join(reason_texts)
         elif record.doc_type in self.invoice_service._OTHER_VOUCHER_TYPES:
-            remark = f"其他票据: {record.doc_type}"
+            remark = f"其他票据: {doc_label}"
         else:
-            remark = f"待识别: {record.doc_type}"
+            remark = f"待识别: {doc_label}"
         return InvoicePreviewItem(
             file_name=record.file_name,
             source_path=candidate.source_path,
