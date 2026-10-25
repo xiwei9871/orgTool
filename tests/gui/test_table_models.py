@@ -78,9 +78,11 @@ def test_invoice_table_model_maps_invoice_preview_rows() -> None:
         ]
     )
 
-    assert model.columnCount() == 9
+    assert model.columnCount() == 11
     assert model.data(model.index(0, 0), Qt.DisplayRole) == "invoice.pdf"
     assert model.data(model.index(0, 1), Qt.DisplayRole) == "1001"
     assert model.data(model.index(0, 5), Qt.DisplayRole) == "新发票"
     assert model.headerData(0, Qt.Horizontal, Qt.DisplayRole) == "文件名"
     assert model.headerData(6, Qt.Horizontal, Qt.DisplayRole) == "归档目标"
+    assert model.headerData(8, Qt.Horizontal, Qt.DisplayRole) == "购买方"
+    assert model.headerData(9, Qt.Horizontal, Qt.DisplayRole) == "税额"
