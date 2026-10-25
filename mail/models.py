@@ -198,6 +198,7 @@ class AttachmentPart:
     content_type: str
     size: int
     is_inline_with_name: bool = False
+    encoding: str = ""
 
 
 @dataclass(slots=True)
@@ -222,9 +223,12 @@ class SyncStatusSnapshot:
     mode: str = ""
     processed: int = 0
     total: int = 0
+    found: int = 0
     downloaded: int = 0
     skipped_duplicate: int = 0
     failed: int = 0
+    folder_exists: int = -1
+    folder_unseen: int = -1
     last_error: str = ""
     last_error_code: str = ""
 

@@ -17,6 +17,7 @@ from typing import Callable
 from core.conflict_resolver import resolve_conflict_path
 from core.errors import OperationCancelled, raise_if_cancelled
 from mail.attachment import (
+    decode_transfer_body,
     extract_attachments,
     is_pdf_candidate,
     looks_like_pdf_bytes,
@@ -228,6 +229,12 @@ class MailSyncEngine:
             lambda: self._client.select_folder(folder_name),
         )
         self._selected_folder = folder_name
+        self.snapshot.folder_exists = result.exists
+        try:
+            status = self._client.folder_status(folder_name)
+            self.snapshot.folder_unseen = status.get("unseen", -1)
+        except MailSyncError:
+            self.snapshot.folder_unseen = -1
 
         folder = self.store.upsert_folder(account.account_id, folder_name)
         if folder.uidvalidity and folder.uidvalidity != result.uidvalidity:
@@ -336,6 +343,9 @@ class MailSyncEngine:
                 "搜索新邮件",
                 lambda: self._client.uid_search(uid_min=folder.last_seen_uid + 1),
             )
+            # NetEase can return the current top message for a UID range
+            # past the max uid — never re-scan what we already covered.
+            uids = [u for u in uids if u > folder.last_seen_uid]
             self.store.update_task(task_id, total=len(uids))
             self.snapshot.total += len(uids)
             max_uid = folder.last_seen_uid
@@ -415,6 +425,7 @@ class MailSyncEngine:
         candidates = [p for p in parts if attachment_matches(p, account.filters)]
         if candidates:
             self._bump_task(task_id, "found", len(candidates))
+            self.snapshot.found += len(candidates)
         for part in candidates:
             self._checkpoint()
             self._download_candidate(account, folder, message, part, task_id)
@@ -443,6 +454,15 @@ class MailSyncEngine:
             part_number=part.part_number,
             size=part.size,
         )
+        # Repair metadata corrupted by earlier parser bugs when a fresh
+        # bodystructure provides better values.
+        if part.filename and record.attachment_name != part.filename:
+            self.store.update_attachment_meta(
+                record.id,
+                attachment_name=part.filename,
+                part_number=part.part_number,
+            )
+            record.attachment_name = part.filename
         # Entity-level dedup: already downloaded and file still present.
         if (
             record.download_status == store_mod.STATUS_DONE
@@ -487,6 +507,12 @@ class MailSyncEngine:
             self.snapshot.failed += 1
             return
 
+        # BODY[n] arrives in the part's transfer encoding — NetEase serves
+        # BASE64 bodies undecoded. Decode per the declared encoding; for
+        # legacy records without one, fall back to trying base64 when the
+        # raw bytes fail validation.
+        data = decode_transfer_body(data, getattr(part, "encoding", ""))
+
         if len(data) > MAX_MESSAGE_BYTES:
             self.store.mark_attachment(
                 record.id,
@@ -501,16 +527,21 @@ class MailSyncEngine:
 
         want_pdf = is_pdf_candidate(part)
         if want_pdf and not looks_like_pdf_bytes(data):
-            self.store.mark_attachment(
-                record.id,
-                store_mod.STATUS_FAILED,
-                last_error="附件内容不是有效 PDF",
-                last_error_code=MailErrorCode.INVALID_PDF,
-                increment_attempts=True,
-            )
-            self._bump_task(task_id, "failed")
-            self.snapshot.failed += 1
-            return
+            # Legacy/unknown encoding: retry once through the base64 decoder.
+            decoded = decode_transfer_body(data, "BASE64")
+            if decoded is not data and looks_like_pdf_bytes(decoded):
+                data = decoded
+            else:
+                self.store.mark_attachment(
+                    record.id,
+                    store_mod.STATUS_FAILED,
+                    last_error="附件内容不是有效 PDF",
+                    last_error_code=MailErrorCode.INVALID_PDF,
+                    increment_attempts=True,
+                )
+                self._bump_task(task_id, "failed")
+                self.snapshot.failed += 1
+                return
 
         digest = sha256_bytes(data)
         duplicate = self.store.find_by_hash(digest, exclude_id=record.id)
@@ -530,6 +561,8 @@ class MailSyncEngine:
             self.invoice_root, self.raw_dir_name, account.label or account.email, month_key
         )
         display_name = part.filename or f"附件-{message.uid}-{part.index}.pdf"
+        if want_pdf and not display_name.casefold().endswith(".pdf"):
+            display_name += ".pdf"
         safe_name = sanitize_filename(f"u{message.uid}_a{part.index}_{display_name}")
         try:
             target = atomic_write_bytes(safe_join(raw_dir, safe_name), data)
@@ -569,6 +602,10 @@ class MailSyncEngine:
         pending_dir = safe_join(self.invoice_root, self.pending_dir_name)
         pending_dir.mkdir(parents=True, exist_ok=True)
         display = part.filename or raw_path.name
+        # Callers only import validated PDFs — guarantee the suffix so the
+        # invoice scanner (which only picks up *.pdf) can see the file.
+        if not display.casefold().endswith(".pdf"):
+            display += ".pdf"
         target = pending_dir / sanitize_filename(display)
         if target.exists():
             # Same-content file already pending → skip; different content
@@ -597,10 +634,22 @@ class MailSyncEngine:
         )
 
     def _retry_failed(self, account: MailAccountConfig) -> None:
-        """Re-attempt previously failed downloads within the attempt cap."""
+        """Re-attempt previously failed downloads within the attempt cap.
+
+        Records are re-resolved through a fresh BODYSTRUCTURE fetch so that
+        filenames/encodings/part numbers corrupted by an older parser get
+        repaired instead of failing forever.
+        """
         failures = self.store.retryable_failures(
             account.account_id, self.options.failed_retry_limit
         )
+        if not failures:
+            return
+        task_id = self.store.create_task(
+            account.account_id, None, "", MODE_RETRY
+        )
+        self.store.update_task(task_id, total=len(failures))
+        refreshed_cache: dict[int, dict[int, object]] = {}
         for record in failures:
             self._checkpoint()
             folder = self.store.get_folder_by_id(record.folder_id)
@@ -622,14 +671,44 @@ class MailSyncEngine:
                 sender=record.sender,
                 date=record.message_date,
             )
-            if not record.part_number:
+            part = self._refresh_part(record, refreshed_cache)
+            if part is None:
                 continue
-            part = _part_from_record(record)
-            task_id = self.store.create_task(
-                account.account_id, folder.id, folder.name, MODE_RETRY
-            )
             self._download_candidate(account, folder, message, part, task_id)
-            self.store.update_task(task_id, status=store_mod.TASK_DONE)
+            # Retry progress must not pollute snapshot.processed — that
+            # counter means "messages scanned this run", not downloads.
+            row = self.store.get_task(task_id)
+            self.store.update_task(
+                task_id, processed=int(row.get("processed") or 0) + 1
+            )
+        self.store.update_task(task_id, status=store_mod.TASK_DONE)
+
+    def _refresh_part(self, record, cache: dict[int, dict[int, object]]):
+        """Rebuild an AttachmentPart for a failed record via BODYSTRUCTURE.
+
+        Falls back to the stored record metadata when the message or its
+        structure is no longer fetchable.
+        """
+        if not record.part_number:
+            return None
+        parts_by_index = cache.get(record.uid)
+        if parts_by_index is None:
+            try:
+                tree = self._with_retry(
+                    f"刷新邮件结构 {record.uid}",
+                    lambda: self._client.fetch_bodystructure(record.uid),
+                )
+            except MailSyncError:
+                parts_by_index = {}
+            else:
+                parts_by_index = {
+                    p.index: p for p in extract_attachments(tree)
+                }
+            cache[record.uid] = parts_by_index
+        fresh = parts_by_index.get(record.attachment_index)
+        if fresh is not None:
+            return fresh
+        return _part_from_record(record)
 
     # ------------------------------------------------------------------
     # Helpers
@@ -664,6 +743,7 @@ class _RecordPart:
         self.size = record.size
         self.content_type = ""
         self.is_inline_with_name = False
+        self.encoding = ""
 
 
 def _part_from_record(record) -> _RecordPart:

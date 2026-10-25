@@ -307,3 +307,123 @@ def test_pause_blocks_until_released(
     pause.clear()
     thread.join(timeout=10)
     assert holder["snap"].downloaded == 2
+
+
+def test_base64_body_decoded_to_real_pdf_bytes(
+    tmp_path, sync_store, fake_server, account
+) -> None:
+    """Live bug: NetEase returns BODY[n] still base64-encoded. The stored
+    file must contain decoded PDF bytes, not the base64 text."""
+    seed_account(fake_server)
+    seed_folder(fake_server, "INBOX", [_msg(1, "发票.pdf", VALID_PDF)])
+    snap = _engine(tmp_path, account, sync_store).run(account, MODE_BACKFILL)
+    assert snap.downloaded == 1
+    raw_files = list((tmp_path / "raw").rglob("*.pdf"))
+    assert len(raw_files) == 1
+    assert raw_files[0].read_bytes() == VALID_PDF
+
+
+def test_literal_filename_end_to_end(
+    tmp_path, sync_store, fake_server, account
+) -> None:
+    """Live bug: {n} literal filename params produced names like '{266}...'
+    without a .pdf suffix — unreadable by the invoice scanner."""
+    seed_account(fake_server)
+    message = FakeMessage(
+        uid=7,
+        message_id="lit@x",
+        attachments=[
+            FakeAttachment(
+                "招商银行掌上生活-信用卡电子账单.pdf",
+                "application/pdf",
+                VALID_PDF,
+                literal_filename=True,
+            )
+        ],
+    )
+    seed_folder(fake_server, "INBOX", [message])
+    snap = _engine(tmp_path, account, sync_store).run(account, MODE_BACKFILL)
+    assert snap.downloaded == 1
+    pending = list((tmp_path / "pending").glob("*.pdf"))
+    assert len(pending) == 1
+    assert "招商银行掌上生活-信用卡电子账单" in pending[0].name
+    assert "{29}" not in pending[0].name and "{" not in pending[0].name
+    assert pending[0].read_bytes() == VALID_PDF
+
+
+def test_snapshot_reports_server_folder_counts(
+    tmp_path, sync_store, fake_server, account
+) -> None:
+    seed_account(fake_server)
+    folder = seed_folder(fake_server, "INBOX", [_msg(1), _msg(2)])
+    folder.unseen = 1
+    snap = _engine(tmp_path, account, sync_store).run(account, MODE_BACKFILL)
+    assert snap.folder_exists == 2
+    assert snap.folder_unseen == 1
+    assert snap.total == 2  # this run, not the cumulative DB total
+
+
+def test_corrupt_done_record_redownloads_via_retry(
+    tmp_path, sync_store, fake_server, account
+) -> None:
+    """Live repair path: a 'done' record whose file holds base64 text and a
+    {n}-corrupted name gets re-downloaded with the real name + bytes once it
+    is marked failed (service repair does the marking)."""
+    seed_account(fake_server)
+    message = FakeMessage(
+        uid=5,
+        message_id="re@x",
+        attachments=[
+            FakeAttachment("电子发票-差旅报销.pdf", "application/pdf", VALID_PDF)
+        ],
+    )
+    folder = seed_folder(fake_server, "INBOX", [message])
+
+    corrupt = tmp_path / "raw" / "u5_a0_{266}招商银行掌上生活-信用"
+    corrupt.parent.mkdir(parents=True)
+    corrupt.write_bytes(b"JVBERi0xLjQKMSAwIG9iago8PD4KZW5kb2JqCnRyYWlsZXIKJSVFT0YK")
+
+    db_folder = sync_store.upsert_folder(account.account_id, "INBOX")
+    sync_store.update_folder_state(
+        db_folder.id, uidvalidity=1001, last_seen_uid=5
+    )
+    record = sync_store.upsert_attachment(
+        account_id=account.account_id,
+        folder_id=db_folder.id,
+        uidvalidity=1001,
+        uid=5,
+        message_id="re@x",
+        subject="s",
+        sender="a@x.com",
+        message_date="",
+        attachment_index=0,
+        attachment_name="{266}招商银行掌上生活-信用",
+        part_number="2",
+        size=100,
+    )
+    sync_store.mark_attachment(
+        record.id, STATUS_DONE, local_path=str(corrupt), content_hash="x"
+    )
+    # Service repair marks the corrupt file for re-download.
+    sync_store.mark_attachment(
+        record.id,
+        STATUS_FAILED,
+        last_error="本地文件内容无效，待重新下载",
+        last_error_code="INVALID_PDF",
+    )
+
+    snap = _engine(tmp_path, account, sync_store).run(
+        account, MODE_INCREMENTAL
+    )
+    assert snap.downloaded == 1
+    updated = sync_store.get_attachment(record.id)
+    assert updated.download_status == STATUS_DONE
+    assert updated.attachment_name == "电子发票-差旅报销.pdf"
+    stored = Path(updated.local_path)
+    assert stored.read_bytes() == VALID_PDF
+    assert stored.name.endswith(".pdf")
+    # Original corrupt file was left untouched.
+    assert corrupt.read_bytes().startswith(b"JVBER")
+    pending = list((tmp_path / "pending").glob("*.pdf"))
+    assert len(pending) == 1
+    assert pending[0].read_bytes() == VALID_PDF

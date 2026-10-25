@@ -8,9 +8,10 @@ from mail.errors import (
     MailErrorCode,
     MailSyncError,
 )
+from mail.attachment import decode_transfer_body, extract_attachments
 from mail.imap_client import ImapClient
 from tests.mail.conftest import VALID_PDF, seed_account, seed_folder
-from tests.mail.fake_imap_server import FakeAttachment, FakeMessage
+from tests.mail.fake_imap_server import FakeAttachment, FakeFolder, FakeMessage
 
 
 def _client(account) -> ImapClient:
@@ -149,7 +150,71 @@ def test_fetch_part_bytes(fake_server, account) -> None:
     tree = client.fetch_bodystructure(5)
     assert tree is not None
     data = client.fetch_part(5, "2")
+    # BODY[n] arrives in the declared transfer encoding — the client layer
+    # returns wire bytes; the sync engine decodes them.
+    assert data == message.attachments[0].wire_data()
+    assert decode_transfer_body(data, "BASE64") == VALID_PDF
+    client.logout()
+
+
+def test_fetch_part_7bit_returns_raw(fake_server, account) -> None:
+    seed_account(fake_server)
+    message = FakeMessage(
+        uid=5,
+        message_id="p@x",
+        attachments=[
+            FakeAttachment("f.pdf", "application/pdf", VALID_PDF, encoding="7BIT")
+        ],
+    )
+    seed_folder(fake_server, "INBOX", [message])
+    client = _client(account)
+    _connect(client)
+    client.select_folder("INBOX")
+    data = client.fetch_part(5, "2")
     assert data == VALID_PDF
+    client.logout()
+
+
+def test_bodystructure_literal_filename(fake_server, account) -> None:
+    """NetEase sends non-ASCII NAME/FILENAME params as {n} literals."""
+    seed_account(fake_server)
+    message = FakeMessage(
+        uid=9,
+        message_id="lit@x",
+        attachments=[
+            FakeAttachment(
+                "电子发票-差旅报销.pdf",
+                "application/pdf",
+                VALID_PDF,
+                literal_filename=True,
+            )
+        ],
+    )
+    seed_folder(fake_server, "INBOX", [message])
+    client = _client(account)
+    _connect(client)
+    client.select_folder("INBOX")
+    tree = client.fetch_bodystructure(9)
+    parts = extract_attachments(tree)
+    assert len(parts) == 1
+    assert parts[0].filename == "电子发票-差旅报销.pdf"
+    assert parts[0].encoding == "BASE64"
+    client.logout()
+
+
+def test_folder_status_counts(fake_server, account) -> None:
+    seed_account(fake_server)
+    folder = FakeFolder(
+        name="INBOX",
+        messages=[FakeMessage(uid=u) for u in (1, 2, 3)],
+        unseen=2,
+    )
+    fake_server.folders["INBOX"] = folder
+    client = _client(account)
+    _connect(client)
+    status = client.folder_status("INBOX")
+    assert status["exists"] == 3
+    assert status["unseen"] == 2
     client.logout()
 
 

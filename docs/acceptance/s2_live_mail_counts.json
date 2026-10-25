@@ -1,0 +1,85 @@
+{
+  "audit": "s2_live_mail_audit",
+  "account_id": "b4f519d67237",
+  "account_email_domain": "163.com",
+  "server_scope": {
+    "imap_listed_folders": 11,
+    "imap_visible_messages_total": 83,
+    "imap_visible_unseen_total": 70,
+    "inbox": { "exists": 66, "unseen": 66, "uidvalidity": 1, "uid_min": 1320870563, "uid_max": 1320870628 },
+    "other_folders": [
+      { "name": "垃圾邮件", "exists": 3, "unseen": 3 },
+      { "name": "广告邮件", "exists": 1, "unseen": 1 },
+      { "name": "Notes", "exists": 13, "unseen": 0 },
+      { "name": "草稿箱", "exists": 0, "unseen": 0 },
+      { "name": "已发送", "exists": 0, "unseen": 0 },
+      { "name": "已删除", "exists": 0, "unseen": 0 },
+      { "name": "病毒文件夹", "exists": 0, "unseen": 0 },
+      { "name": "订阅邮件", "exists": 0, "unseen": 0 },
+      { "name": "学校", "exists": 0, "unseen": 0 },
+      { "name": "朋友", "exists": 0, "unseen": 0 }
+    ],
+    "webmail_unread_reported_by_user": 104,
+    "unseen_gap_explanation": "IMAP STATUS 可见未读 70；其余约 34 封位于网页端自有聚合/未通过 IMAP LIST 暴露的文件夹，与附件同步范围无关"
+  },
+  "first_sync_run_before_fix": {
+    "mode": "incremental",
+    "folder_scanned": "INBOX",
+    "messages_scanned_this_run": 66,
+    "attachment_candidates_found": 48,
+    "downloaded": 5,
+    "skipped_duplicate": 0,
+    "failed": 43,
+    "db_status_counts_after_run": { "done": 5, "failed": 43 },
+    "failure_error_code": "INVALID_PDF",
+    "root_causes": [
+      "IMAP BODY[n] 返回的是未解码的 base64 传输编码正文，旧代码按原始字节校验 PDF 头导致 43 条 INVALID_PDF",
+      "BODYSTRUCTURE 中的 {n} literal 参数值未被 sexp 解析器消费（imaplib 拼接后形如 {266}<内容>），文件名损坏且丢失 .pdf 后缀",
+      "5 条 done 记录写入的实为 base64 文本文件，文件名含 {n} 片段且无 .pdf，发票扫描（仅收 *.pdf）结果为 0",
+      "旧实现每个失败附件创建独立 retry 任务，任务表噪声大；统计将本轮与累计口径混用"
+    ]
+  },
+  "repair": {
+    "corrupt_done_records_marked_for_redownload": 5,
+    "retryable_failed_records": 43,
+    "total_redownloads": 48,
+    "original_corrupt_files_preserved": true,
+    "server_side_mutations": "none (readonly select + BODY.PEEK only)"
+  },
+  "validation_run_after_fix": {
+    "mode": "incremental",
+    "retried_attachments": 48,
+    "downloaded": 48,
+    "failed": 0,
+    "skipped_duplicate": 0,
+    "snapshot": {
+      "found": 0,
+      "downloaded": 48,
+      "failed": 0,
+      "folder_exists": 66,
+      "folder_unseen": 66
+    },
+    "note": "该轮增量扫描返回了 1 个未超过 last_seen_uid 的 UID（NetEase 对超出最大 UID 的 UID n:* 查询仍返回顶端邮件）；已加防御性过滤，此后此类消息不再计入扫描数",
+    "db_status_counts_after_run": { "done": 48 },
+    "valid_pdf_files_on_disk": 48,
+    "pending_invoice_dir_pdf_count": 48,
+    "names_with_literal_residue": 0
+  },
+  "idempotency_rerun": {
+    "mode": "incremental",
+    "snapshot": {
+      "processed": 0,
+      "total": 0,
+      "found": 0,
+      "downloaded": 0,
+      "skipped_duplicate": 0,
+      "failed": 0,
+      "folder_exists": 66,
+      "folder_unseen": 66
+    },
+    "db_status_counts": { "done": 48 },
+    "files_added_or_modified": 0,
+    "last_seen_uid": 1320870628
+  },
+  "failure_reasons_after_fix": "无 — 修复后 48/48 全部成功"
+}
