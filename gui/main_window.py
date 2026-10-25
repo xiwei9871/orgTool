@@ -6,14 +6,16 @@ import threading
 from pathlib import Path
 from typing import Any, Callable
 
-from PySide6.QtCore import Qt, QThreadPool
+from PySide6.QtCore import Qt, QThreadPool, QTimer
 from PySide6.QtGui import QCloseEvent
 from PySide6.QtWidgets import QMainWindow, QMessageBox, QTabWidget, QWidget
 
 from config.manager import ConfigManager
 from core.errors import OperationCancelled
 from core.undo_manager import UndoManager
+from gui.dialogs.backfill_dialog import BackfillDialog
 from gui.dialogs.duplicate_dialog import DuplicateDialog
+from gui.dialogs.mail_account_dialog import MailAccountDialog
 from gui.dialogs.settings_dialog import SettingsDialog
 from gui.pages.desktop_page import DesktopPage
 from gui.pages.invoice_page import InvoicePage
@@ -21,6 +23,7 @@ from gui.widgets.status_bar import AppStatusBar
 from gui.workers.task_worker import TaskWorker
 from services.desktop_service import DesktopService
 from services.invoice_service import InvoiceService
+from services.mail_service import MailService
 from utils.desktop import resolve_desktop_directory
 from utils.shell import open_in_file_explorer
 
@@ -42,6 +45,11 @@ class MainWindow(QMainWindow):
             self.config.invoice.root_dir = str(self.desktop_root / "发票管理")
         self.desktop_service = DesktopService(self.config_manager.paths)
         self.invoice_service = InvoiceService(self.config_manager.paths)
+        self.mail_service = MailService(
+            self.config_manager.paths,
+            config_getter=lambda: self.config,
+            config_saver=lambda config: self.config_manager.save(config),
+        )
         self.undo_manager = UndoManager(self.desktop_service.task_store)
         self.desktop_scan_result: list | None = None
         self.desktop_preview_result: list | None = None
@@ -67,6 +75,7 @@ class MainWindow(QMainWindow):
         self.settings_dialog = SettingsDialog()
         self._bind_events()
         self._refresh_path_labels()
+        self._init_mail_sync()
 
     def _bind_events(self) -> None:
         self.desktop_page.scan_button.clicked.connect(self.scan_desktop)
@@ -84,6 +93,20 @@ class MainWindow(QMainWindow):
         self.invoice_page.open_report_button.clicked.connect(self.open_invoice_reports)
         self.invoice_page.open_month_button.clicked.connect(self.open_current_invoice_month)
         self.invoice_page.open_root_button.clicked.connect(self.open_invoice_root)
+
+        panel = self.invoice_page.mail_panel
+        panel.add_button.clicked.connect(self.add_mail_account)
+        panel.edit_button.clicked.connect(self.edit_mail_account)
+        panel.remove_button.clicked.connect(self.remove_mail_account)
+        panel.test_button.clicked.connect(self.test_mail_connection)
+        panel.backfill_button.clicked.connect(self.start_mail_backfill)
+        panel.sync_now_button.clicked.connect(self.sync_mail_now)
+        panel.pause_button.clicked.connect(self.mail_service.pause)
+        panel.resume_button.clicked.connect(self.mail_service.resume)
+        panel.cancel_button.clicked.connect(self.mail_service.cancel)
+        panel.open_raw_button.clicked.connect(self.open_mail_raw_dir)
+        panel.auto_sync_check.toggled.connect(self._auto_sync_toggled)
+        panel.interval_spin.valueChanged.connect(self._auto_sync_interval_changed)
 
     def _refresh_path_labels(self) -> None:
         self.desktop_page.desktop_path.set_value(str(self.desktop_root))
@@ -195,11 +218,244 @@ class MainWindow(QMainWindow):
     def closeEvent(self, event: QCloseEvent) -> None:
         """Stop background work before the window is destroyed."""
         self._closing = True
+        self._mail_status_timer.stop()
+        self._mail_due_timer.stop()
+        self.mail_service.shutdown(timeout=3.0)
         for cancel_event in self._cancel_events:
             cancel_event.set()
         if self._cancel_events:
             self._thread_pool.waitForDone(3000)
         super().closeEvent(event)
+
+    # ------------------------------------------------------------------
+    # Mail synchronization
+
+    def _init_mail_sync(self) -> None:
+        panel = self.invoice_page.mail_panel
+        mail_config = self.config.mail
+        panel.auto_sync_check.setChecked(mail_config.auto_sync_enabled)
+        panel.interval_spin.setValue(mail_config.poll_interval_minutes)
+        self._refresh_mail_accounts()
+
+        self._mail_status_timer = QTimer(self)
+        self._mail_status_timer.setInterval(1000)
+        self._mail_status_timer.timeout.connect(self._refresh_mail_status)
+        self._mail_status_timer.start()
+
+        self._mail_due_timer = QTimer(self)
+        self._mail_due_timer.setInterval(60_000)
+        self._mail_due_timer.timeout.connect(
+            lambda: self.mail_service.sync_due_accounts()
+        )
+        self._mail_due_timer.start()
+
+    def _persist_mail_config(self, _mail=None) -> None:
+        self.config_manager.save(self.config)
+
+    def _refresh_mail_accounts(self) -> None:
+        accounts = self.mail_service.list_accounts()
+        fingerprint = tuple(
+            (
+                a.account_id,
+                a.label,
+                a.email,
+                a.host,
+                a.last_sync_at,
+                a.last_error,
+                a.enabled,
+                tuple(a.folders),
+            )
+            for a in accounts
+        )
+        # Rebuilding the table clears the row selection — skip it when
+        # nothing changed so the 1-second status timer does not disrupt
+        # the user's selection.
+        if fingerprint != getattr(self, "_mail_accounts_fp", None):
+            self._mail_accounts_fp = fingerprint
+            self.invoice_page.mail_panel.set_accounts(accounts)
+
+    def _refresh_mail_status(self) -> None:
+        accounts = self.mail_service.list_accounts()
+        counts: dict[str, int] = {}
+        for account in accounts:
+            for key, value in self.mail_service.store.count_by_status(
+                account.account_id
+            ).items():
+                counts[key] = counts.get(key, 0) + value
+        snapshot = self.mail_service.status()
+        self.invoice_page.mail_panel.update_status(snapshot, counts)
+        # When a sync finishes with new downloads, refresh the pending
+        # invoice scan so downloaded PDFs appear immediately.
+        was_running = getattr(self, "_mail_was_running", False)
+        if was_running and not snapshot.running and snapshot.downloaded > 0:
+            self.scan_invoices()
+        self._mail_was_running = snapshot.running
+        self._refresh_mail_accounts()
+
+    def _selected_mail_account(self):
+        account_id = self.invoice_page.mail_panel.selected_account_id()
+        if account_id:
+            return self.mail_service.get_account(account_id)
+        accounts = self.mail_service.list_accounts()
+        if len(accounts) == 1:
+            return accounts[0]
+        return None
+
+    def _mail_secret(self, account_id: str) -> str:
+        try:
+            return self.mail_service.credentials.get_secret(account_id) or ""
+        except Exception:  # noqa: BLE001
+            return ""
+
+    def add_mail_account(self) -> None:
+        dialog = MailAccountDialog(
+            folder_lister=self.mail_service.list_folders,
+            connection_tester=self.mail_service.test_connection,
+            parent=self,
+        )
+        if dialog.exec():
+            account = dialog.build_account()
+            try:
+                self.mail_service.upsert_account(
+                    account, secret=dialog.secret(), persist=self._persist_mail_config
+                )
+            except Exception as exc:  # noqa: BLE001
+                QMessageBox.warning(self, "保存失败", f"无法保存账户: {exc}")
+                return
+            self._refresh_mail_accounts()
+            self.app_status_bar.set_message("邮箱账户已添加")
+
+    def edit_mail_account(self) -> None:
+        account = self._selected_mail_account()
+        if account is None:
+            QMessageBox.information(self, "提示", "请先在表格中选择一个邮箱账户")
+            return
+        dialog = MailAccountDialog(
+            account=account,
+            folder_lister=self.mail_service.list_folders,
+            connection_tester=self.mail_service.test_connection,
+            existing_secret=self._mail_secret(account.account_id),
+            parent=self,
+        )
+        if dialog.exec():
+            updated = dialog.build_account()
+            try:
+                self.mail_service.upsert_account(
+                    updated, secret=dialog.secret(), persist=self._persist_mail_config
+                )
+            except Exception as exc:  # noqa: BLE001
+                QMessageBox.warning(self, "保存失败", f"无法保存账户: {exc}")
+                return
+            self._refresh_mail_accounts()
+            self.app_status_bar.set_message("邮箱账户已更新")
+
+    def remove_mail_account(self) -> None:
+        account = self._selected_mail_account()
+        if account is None:
+            QMessageBox.information(self, "提示", "请先选择一个邮箱账户")
+            return
+        reply = QMessageBox.question(
+            self, "删除账户", f"确定删除账户 {account.label or account.email} 及其授权码吗？"
+        )
+        if reply != QMessageBox.Yes:
+            return
+        self.mail_service.delete_account(
+            account.account_id, persist=self._persist_mail_config
+        )
+        self._refresh_mail_accounts()
+        self.app_status_bar.set_message("邮箱账户已删除")
+
+    def test_mail_connection(self) -> None:
+        account = self._selected_mail_account()
+        if account is None:
+            QMessageBox.information(self, "提示", "请先选择一个邮箱账户")
+            return
+        secret = self._mail_secret(account.account_id)
+
+        def work(_ev):
+            return self.mail_service.test_connection(account, secret)
+
+        def apply(result) -> None:
+            if result.ok:
+                QMessageBox.information(self, "连接测试", result.message)
+            else:
+                QMessageBox.warning(
+                    self,
+                    "连接测试失败",
+                    f"[{result.code}] {result.message}\n阶段: {result.stage}",
+                )
+            self.app_status_bar.set_message("邮箱连接测试完成")
+
+        self._start_task(self.invoice_page, "正在测试邮箱连接…", work, apply)
+
+    def start_mail_backfill(self) -> None:
+        account = self._selected_mail_account()
+        if account is None:
+            QMessageBox.information(self, "提示", "请先选择一个邮箱账户")
+            return
+        if not self._mail_secret(account.account_id):
+            QMessageBox.warning(self, "缺少授权码", "请先在账户设置中填写授权码")
+            return
+        secret = self._mail_secret(account.account_id)
+
+        def work(_ev):
+            try:
+                folders = self.mail_service.list_folders(account, secret)
+                return [f.name for f in folders if f.selectable]
+            except Exception:  # noqa: BLE001 - fall back to configured names
+                return account.folders or ["INBOX"]
+
+        def apply(folder_names) -> None:
+            self._open_backfill_dialog(account, folder_names)
+
+        self._start_task(self.invoice_page, "正在获取邮件文件夹…", work, apply)
+
+    def _open_backfill_dialog(self, account, folder_names) -> None:
+        dialog = BackfillDialog(folder_names or ["INBOX"], parent=self)
+        if not dialog.exec():
+            return
+        folders = dialog.selected_folders()
+        since, until = dialog.date_range()
+        started = self.mail_service.start_backfill(
+            account.account_id, since=since, until=until, folders=folders
+        )
+        if not started:
+            QMessageBox.information(self, "提示", "该账户已有同步任务在执行")
+        else:
+            self.app_status_bar.set_message("历史补抓已开始")
+
+    def sync_mail_now(self) -> None:
+        account = self._selected_mail_account()
+        account_id = account.account_id if account else None
+        if account is not None and not self._mail_secret(account.account_id):
+            QMessageBox.warning(self, "缺少授权码", "请先在账户设置中填写授权码")
+            return
+        if self.mail_service.start_incremental(account_id):
+            self.app_status_bar.set_message("已启动新邮件同步")
+        else:
+            QMessageBox.information(self, "提示", "同步任务已在执行")
+
+    def open_mail_raw_dir(self) -> None:
+        root = Path(self.config.invoice.root_dir)
+        raw_dir = root / self.config.mail.raw_dir_name
+        raw_dir.mkdir(parents=True, exist_ok=True)
+        open_in_file_explorer(raw_dir)
+
+    def _auto_sync_toggled(self, checked: bool) -> None:
+        self.mail_service.set_auto_sync(
+            checked, self.invoice_page.mail_panel.interval_spin.value(),
+            persist=self._persist_mail_config,
+        )
+        self.app_status_bar.set_message(
+            "自动同步已开启（仅应用运行期间）" if checked else "自动同步已关闭"
+        )
+
+    def _auto_sync_interval_changed(self, value: int) -> None:
+        self.mail_service.set_auto_sync(
+            self.invoice_page.mail_panel.auto_sync_check.isChecked(),
+            value,
+            persist=self._persist_mail_config,
+        )
 
     # ------------------------------------------------------------------
     # Settings and file manager shortcuts

@@ -112,6 +112,40 @@ def test_config_manager_tolerates_unknown_keys_and_missing_sections(
     assert config.invoice.pending_dir_name == "发票归档_待处理"
 
 
+def test_config_manager_roundtrips_mail_accounts(
+    tmp_path: Path, monkeypatch
+) -> None:
+    """Mail accounts (no secrets) persist through config.json."""
+    monkeypatch.setenv("ORGTOOL_RUNTIME_DIR", str(tmp_path))
+    manager = ConfigManager.for_app("DesktopSmartOrganizer")
+
+    config = manager.load()
+    config.mail.poll_interval_minutes = 10
+    account = config.mail.accounts
+    assert account == []
+    from mail.models import MailAccountConfig
+
+    new_account = MailAccountConfig()
+    new_account.email = "me@163.com"
+    new_account.folders = ["INBOX", "发票"]
+    new_account.filters.subject_keywords = ["发票", "账单"]
+    config.mail.accounts.append(new_account)
+    manager.save(config)
+
+    reloaded = manager.load()
+    assert reloaded.mail.poll_interval_minutes == 10
+    assert len(reloaded.mail.accounts) == 1
+    restored = reloaded.mail.accounts[0]
+    assert restored.email == "me@163.com"
+    assert restored.folders == ["INBOX", "发票"]
+    assert restored.filters.subject_keywords == ["发票", "账单"]
+    # Secrets must never reach config.json.
+    saved_text = manager.paths.config_file.read_text(encoding="utf-8")
+    assert "授权码" not in saved_text
+    assert "password" not in saved_text.lower()
+    assert "secret" not in saved_text.lower()
+
+
 def test_runtime_paths_fall_back_when_primary_root_is_not_writable(
     tmp_path: Path, monkeypatch
 ) -> None:

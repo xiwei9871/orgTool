@@ -21,8 +21,60 @@ S1-19,S1,gui,关闭时停止并等待任务,auto,macOS,PASS,test_close_event_sto
 S1-20,S1,gui,任务失败展示,auto,macOS,PASS,test_failed_background_task_shows_warning
 S1-21,S1,gui,发票非法根目录提示,auto,macOS,PASS,test_main_window_scan_invoices_handles_invalid_root_gracefully
 S1-22,S1,regression,原测试套件回归,auto,macOS,PASS,93 passed 1 skipped
-S1-23,S1,build,macOS .app+zip 构建脚本,manual,macOS,PENDING_MANUAL,scripts/build_macos.sh (PyInstaller 本机构建耗时,CI 执行)
+S1-23,S1,build,macOS .app+zip 构建脚本,manual,macOS,PASS,scripts/build_macos.sh 产出 .app/.zip 且 .app 启动 exit=0 (adhoc签名未公证)
 S1-24,S1,build,Windows .exe 构建脚本,manual,Windows,PENDING_CI,scripts/build_windows.ps1 + CI
 S1-25,S1,ci,GitHub Actions 双平台测试,ci,GitHub,PENDING_CI,workflows/tests.yml
 S1-26,S1,ci,GitHub Actions 双平台构建,ci,GitHub,PENDING_CI,workflows/build.yml
 S1-27,S1,gui,真实 GUI 启动,manual,macOS,PASS,python main.py 等价启动 exit=0
+S2-01,S2,auth,授权码登录成功,auto,fake-imap,PASS,test_full_staged_connect_lists_and_selects
+S2-02,S2,auth,错误授权码→AUTH_FAILED,auto,fake-imap,PASS,test_wrong_auth_code_maps_auth_failed
+S2-03,S2,imap-id,登录后SELECT前发送IMAP ID,auto,fake-imap,PASS,test_id_sent_before_select
+S2-04,S2,imap-id,ID被拒→IMAP_ID_UNSUPPORTED,auto,fake-imap,PASS,test_id_rejected_flagged_and_select_maps_error
+S2-05,S2,imap-id,要求ID的服务器跳过ID则SELECT失败,auto,fake-imap,PASS,test_select_without_id_when_server_requires_it
+S2-06,S2,folders,文件夹发现含中文文件夹,auto,fake-imap,PASS,test_full_staged_connect_lists_and_selects
+S2-07,S2,folders,修改版UTF-7编解码往返,auto,fake-imap,PASS,test_utf7.py
+S2-08,S2,folders,中文文件夹SELECT走UTF-7线路,auto,fake-imap,PASS,test_chinese_folder_name_utf7_on_wire
+S2-09,S2,folders,SELECT失败→MAILBOX_SELECT_FAILED,auto,fake-imap,PASS,test_select_failure_maps_error
+S2-10,S2,search,UID SEARCH 及 uid_min 游标,auto,fake-imap,PASS,test_uid_search_and_fetch_header
+S2-11,S2,search,服务器历史范围限制,auto,fake-imap,PASS,test_history_limit_caps_search
+S2-12,S2,search,空结果不报错,auto,fake-imap,PASS,test_search_returns_empty_not_exception
+S2-13,S2,backfill,历史补抓PDF落到raw+pending,auto,fake-imap,PASS,test_backfill_downloads_pdf_to_raw_and_pending
+S2-14,S2,backfill,重复执行零重复下载,auto,fake-imap,PASS,test_second_run_is_fully_idempotent
+S2-15,S2,backfill,中断取消后无损无重复恢复,auto,fake-imap,PASS,test_cancel_mid_run_resumes_without_loss_or_dup
+S2-16,S2,dedup,相同内容不同邮件→哈希去重,auto,fake-imap,PASS,test_same_content_different_message_deduped
+S2-17,S2,dedup,同名不同内容→双保留+冲突改名,auto,fake-imap,PASS,test_same_name_different_content_both_kept
+S2-18,S2,dedup,UIDVALIDITY变更→重扫+哈希去重,auto,fake-imap,PASS,test_uidvalidity_change_rescans_and_hash_dedups
+S2-19,S2,attachment,非PDF附件被过滤,auto,fake-imap,PASS,test_non_pdf_attachment_filtered
+S2-20,S2,attachment,假PDF内容→INVALID_PDF不落盘,auto,fake-imap,PASS,test_invalid_pdf_marked_failed_not_saved
+S2-21,S2,attachment,BODYSTRUCTURE/inline/RFC2231/编码文件名,auto,unit,PASS,test_attachment.py
+S2-22,S2,fs,原子写入+.part清理,auto,macOS,PASS,test_atomic_write_creates_parent_dirs
+S2-23,S2,fs,同名冲突写入,auto,macOS,PASS,test_write_verified_pdf_conflict_names
+S2-24,S2,fs,路径穿越防护,auto,macOS,PASS,test_filenames.py+test_build_raw_dir_layout_and_traversal
+S2-25,S2,fs,中文文件名/中文路径,auto,macOS,PASS,test_sanitize_keeps_chinese_and_spaces
+S2-26,S2,source,.source.json来源+邮箱脱敏,auto,macOS,PASS,test_source_sidecar_roundtrip_and_masking
+S2-27,S2,source,RFC2822日期→YYYYMM目录,auto,macOS,PASS,test_month_key_from_date
+S2-28,S2,store,实体唯一键幂等upsert,auto,macOS,PASS,test_upsert_attachment_is_idempotent
+S2-29,S2,store,同UID不同文件夹分离,auto,macOS,PASS,test_same_uid_different_folders_are_distinct
+S2-30,S2,store,同邮件同名多附件分离,auto,macOS,PASS,test_same_message_same_name_attachments_are_distinct
+S2-31,S2,store,pending/draining与崩溃恢复,auto,macOS,PASS,test_pending_and_reset_downloading
+S2-32,S2,store,失败可重试记录上限,auto,macOS,PASS,test_retryable_failures
+S2-33,S2,store,备份+完整性检查,auto,macOS,PASS,test_backup_and_integrity
+S2-34,S2,incremental,增量只抓新UID,auto,fake-imap,PASS,test_incremental_sync_fetches_only_new
+S2-35,S2,resilience,下载中断线→退避重连恢复,auto,fake-imap,PASS,test_network_abort_retries_and_recovers
+S2-36,S2,resilience,服务器拒绝→标记失败,下轮自动重试,auto,fake-imap,PASS,test_failed_records_are_retried_next_run
+S2-37,S2,filters,主题关键词过滤,auto,fake-imap,PASS,test_filters_limit_downloads
+S2-38,S2,concurrency,同账户并发提交→SYNC_CONFLICT,auto,macOS,PASS,test_same_account_conflict_rejected
+S2-39,S2,sched,到期账户调度+总开关,auto,macOS,PASS,test_sync_due_accounts_respects_interval
+S2-40,S2,control,取消→账户标记已取消,auto,macOS,PASS,test_cancel_marks_account_cancelled
+S2-41,S2,control,暂停阻塞直到恢复,auto,fake-imap,PASS,test_pause_blocks_until_released
+S2-42,S2,probe,分阶段连接测试全通,auto,fake-imap,PASS,test_test_connection_full_probe
+S2-43,S2,probe,错误授权码→login阶段AUTH_FAILED,auto,fake-imap,PASS,test_test_connection_full_probe
+S2-44,S2,config,mail账户配置持久化(无secret),auto,macOS,PASS,test_config_manager_roundtrips_mail_accounts
+S2-45,S2,gui,邮箱面板+账户选择,auto,offscreen,PASS,test_panel_accounts_and_selection
+S2-46,S2,gui,账户对话框预设/校验/授权码保留,auto,offscreen,PASS,test_account_dialog_*
+S2-47,S2,gui,补抓对话框范围校验,auto,offscreen,PASS,test_backfill_dialog_*
+S2-48,S2,gui,状态定时器不打断选择,auto,offscreen,PASS,test_mail_status_timer_ticks_and_keeps_selection
+S2-49,S2,gui,同步完成自动触发发票扫描,auto,offscreen,PASS,test_sync_finished_triggers_invoice_scan
+S2-50,S2,live,真实网易IMAP闭环,manual,macOS+Windows,PENDING_LIVE_VALIDATION,需真实账户本地验证
+S2-51,S2,live,真实历史补抓+中断恢复,manual,macOS+Windows,PENDING_LIVE_VALIDATION,需真实账户本地验证
+S2-52,S2,live,真实新邮件轮询下载,manual,macOS+Windows,PENDING_LIVE_VALIDATION,需真实账户本地验证
