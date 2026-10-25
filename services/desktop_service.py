@@ -2,7 +2,10 @@
 
 from __future__ import annotations
 
+import threading
 from pathlib import Path
+
+from core.errors import raise_if_cancelled
 
 from classifiers.desktop_classifier import DesktopClassifier
 from config.schema import AppConfig
@@ -24,7 +27,12 @@ class DesktopService:
         self.task_store = TaskStore(runtime_paths)
         self.move_executor = MoveExecutor(self.task_store)
 
-    def scan_desktop(self, desktop_root: Path, config: AppConfig) -> list[DesktopItem]:
+    def scan_desktop(
+        self,
+        desktop_root: Path,
+        config: AppConfig,
+        cancel_event: threading.Event | None = None,
+    ) -> list[DesktopItem]:
         """Scan the top-level desktop entries according to config rules."""
         return self.scanner.scan(
             desktop_root,
@@ -32,6 +40,7 @@ class DesktopService:
             whitelist_extensions=set(config.general.whitelist_extensions),
             skip_hidden=config.general.skip_hidden_files,
             skip_system=config.general.skip_system_files,
+            cancel_event=cancel_event,
         )
 
     def build_preview(
@@ -39,10 +48,12 @@ class DesktopService:
         scanned_items: list[DesktopItem],
         desktop_root: Path,
         config: AppConfig,
+        cancel_event: threading.Event | None = None,
     ) -> list[PreviewItem]:
         """Build preview rows for scanned desktop items."""
         preview_items: list[PreviewItem] = []
         for item in scanned_items:
+            raise_if_cancelled(cancel_event)
             classification = self.classifier.classify(
                 item,
                 low_confidence_threshold=config.general.low_confidence_threshold,
@@ -59,6 +70,12 @@ class DesktopService:
             )
         return preview_items
 
-    def execute_preview(self, preview_items: list[PreviewItem]):
+    def execute_preview(
+        self,
+        preview_items: list[PreviewItem],
+        cancel_event: threading.Event | None = None,
+    ):
         """Execute a desktop preview task."""
-        return self.move_executor.execute("desktop_organize", preview_items)
+        return self.move_executor.execute(
+            "desktop_organize", preview_items, cancel_event=cancel_event
+        )

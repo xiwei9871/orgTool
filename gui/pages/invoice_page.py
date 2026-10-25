@@ -29,6 +29,7 @@ class InvoicePage(QWidget):
         self.duplicate_button = QPushButton("查看重复项")
         self.open_month_button = QPushButton("打开月份目录")
         self.open_report_button = QPushButton("打开报表目录")
+        self.open_root_button = QPushButton("打开发票目录")
         self.open_logs_button = QPushButton("打开日志目录")
 
         button_row = QHBoxLayout()
@@ -38,6 +39,7 @@ class InvoicePage(QWidget):
         button_row.addWidget(self.duplicate_button)
         button_row.addWidget(self.open_month_button)
         button_row.addWidget(self.open_report_button)
+        button_row.addWidget(self.open_root_button)
         button_row.addWidget(self.open_logs_button)
 
         self.table_model = InvoiceTableModel()

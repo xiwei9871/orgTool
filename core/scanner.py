@@ -2,8 +2,10 @@
 
 from __future__ import annotations
 
+import threading
 from pathlib import Path
 
+from core.errors import raise_if_cancelled
 from core.filters import should_skip_path
 from models.desktop import DesktopItem
 
@@ -18,11 +20,13 @@ class DesktopScanner:
         whitelist_extensions: set[str],
         skip_hidden: bool,
         skip_system: bool,
+        cancel_event: threading.Event | None = None,
     ) -> list[DesktopItem]:
         """Scan desktop entries and return structured items."""
         items: list[DesktopItem] = []
 
         for entry in sorted(desktop_path.iterdir(), key=lambda path: path.name.casefold()):
+            raise_if_cancelled(cancel_event)
             should_skip, reason = should_skip_path(
                 entry,
                 whitelist_names=whitelist_names,
