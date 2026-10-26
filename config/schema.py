@@ -47,6 +47,7 @@ class InvoiceConfig:
     root_dir: str = DEFAULT_INVOICE_CONFIG["root_dir"]
     pending_dir_name: str = DEFAULT_INVOICE_CONFIG["pending_dir_name"]
     non_invoice_dir_name: str = DEFAULT_INVOICE_CONFIG["non_invoice_dir_name"]
+    source_dir_name: str = DEFAULT_INVOICE_CONFIG["source_dir_name"]
     monthly_dir_name: str = DEFAULT_INVOICE_CONFIG["monthly_dir_name"]
     duplicate_dir_name: str = DEFAULT_INVOICE_CONFIG["duplicate_dir_name"]
     report_dir_name: str = DEFAULT_INVOICE_CONFIG["report_dir_name"]

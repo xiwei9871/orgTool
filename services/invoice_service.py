@@ -141,6 +141,22 @@ class InvoiceService:
 
         return preview_items
 
+
+    def _sidecar_target(self, dest_pdf: Path, config: InvoiceConfig) -> Path:
+        """Provenance sidecars live in a separate 附件来源 dir, mirroring
+        the destination's parent folder — reimbursement folders stay
+        clean PDFs only."""
+        base = Path(config.root_dir) / config.source_dir_name
+        return base / dest_pdf.parent.name / (dest_pdf.name + ".source.json")
+
+    def _move_sidecar(self, source_pdf: Path, dest_pdf: Path, config: InvoiceConfig) -> None:
+        sidecar = Path(str(source_pdf) + ".source.json")
+        if not sidecar.exists():
+            return
+        target = self._sidecar_target(dest_pdf, config)
+        target.parent.mkdir(parents=True, exist_ok=True)
+        shutil.move(str(sidecar), str(target))
+
     def _attach_mail_source(self, record: InvoiceRecord, path: Path) -> None:
         """Attach mail provenance from a ``.source.json`` sidecar if present."""
         source = load_source_sidecar(path)
@@ -220,11 +236,7 @@ class InvoiceService:
 
             try:
                 shutil.move(str(source), str(target))
-                source_sidecar = Path(str(source) + ".source.json")
-                if source_sidecar.exists():
-                    shutil.move(
-                        str(source_sidecar), str(target) + ".source.json"
-                    )
+                self._move_sidecar(source, target, config)
                 moved_count += 1
                 preview.record.file_path = str(target)
                 task.items.append(
@@ -398,9 +410,7 @@ class InvoiceService:
         target = resolve_conflict_path(Path(plan.target_path))
         target.parent.mkdir(parents=True, exist_ok=True)
         shutil.move(str(source), str(target))
-        source_sidecar = Path(str(source) + ".source.json")
-        if source_sidecar.exists():
-            shutil.move(str(source_sidecar), str(target) + ".source.json")
+        self._move_sidecar(source, target, config)
         record.file_path = str(target)
         record.archived_at = datetime.now().isoformat(timespec="seconds")
         return target
@@ -586,9 +596,7 @@ class InvoiceService:
                         target = alt
                         break
             shutil.move(str(source), str(target))
-            sidecar = Path(str(source) + ".source.json")
-            if sidecar.exists():
-                shutil.move(str(sidecar), str(target) + ".source.json")
+            self._move_sidecar(source, target, config)
             moved.append(str(target))
 
         return {"moved": moved, "merged": merged, "kept": kept}
