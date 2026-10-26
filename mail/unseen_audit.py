@@ -48,7 +48,7 @@ from mail.sync_engine import MAX_MESSAGE_BYTES, _parse_message_info
 
 logger = logging.getLogger(__name__)
 
-DEFAULT_REVIEW_DIR = "待审核附件"
+DEFAULT_REVIEW_DIR = "非发票附件"
 
 
 @dataclass

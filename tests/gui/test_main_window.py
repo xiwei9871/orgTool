@@ -438,7 +438,7 @@ def test_invoice_dir_stats_and_folder_buttons(
     inv_root = tmp_path / "发票管理"
     for name, n_files in (
         ("发票归档_待处理", 3),
-        ("待审核附件", 2),
+        ("非发票附件", 2),
         ("按月份归档", 5),
         ("导出报表", 0),
         ("邮件原始附件", 7),
@@ -473,12 +473,12 @@ def test_invoice_dir_stats_and_folder_buttons(
 
     window = MainWindow()
     text = window.invoice_page.dir_stats_label.text()
-    assert "待处理 3" in text and "待审核 2" in text
+    assert "待处理 3" in text and "非发票附件 2" in text
     assert "已归档 5" in text and "报表 1" in text and "邮件原始附件 7" in text
 
     window.invoice_page.open_pending_button.click()
     window.invoice_page.open_review_button.click()
     window.invoice_page.open_archive_button.click()
     assert opened[-3].endswith("发票归档_待处理")
-    assert opened[-2].endswith("待审核附件")
+    assert opened[-2].endswith("非发票附件")
     assert opened[-1].endswith("按月份归档")

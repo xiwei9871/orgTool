@@ -25,6 +25,7 @@ _VOUCHER_RE = re.compile(
     re.IGNORECASE,
 )
 _FOLIO_RE = re.compile(r"结账单|对账单|离店日期|入住日期|房费|FOLIO|guest\s*folio", re.IGNORECASE)
+_CONTRACT_RE = re.compile(r"租赁合同|租赁协议|租车协议|出租方|承租方|协议编号|合同编号")
 
 
 def classify_pdf_text(text: str) -> str:
@@ -44,6 +45,8 @@ def classify_pdf_text(text: str) -> str:
         return DOC_HOTEL_FOLIO
     if _VOUCHER_RE.search(flat):
         return DOC_TRAVEL_VOUCHER
+    if _CONTRACT_RE.search(flat):
+        return DOC_OTHER
     if "发票" in flat:
         return DOC_UNKNOWN
     return DOC_OTHER

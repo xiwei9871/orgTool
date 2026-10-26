@@ -34,6 +34,15 @@ from services.mail_service import MailService
 from utils.desktop import resolve_desktop_directory
 from utils.shell import open_in_file_explorer
 
+_DOC_TYPE_TEXT = {
+    "e_invoice": "电子发票",
+    "travel_voucher": "行程/报销凭证",
+    "hotel_folio": "酒店结账单",
+    "other_pdf": "其他PDF",
+    "needs_ocr": "需OCR识别",
+    "unknown": "无法识别",
+}
+
 
 class MainWindow(QMainWindow):
     """Top-level application window with desktop and invoice pages."""
@@ -93,11 +102,15 @@ class MainWindow(QMainWindow):
         self.desktop_page.open_logs_button.clicked.connect(self.open_logs)
         self.desktop_page.settings_button.clicked.connect(self.open_settings)
 
+        self.invoice_page.process_button.clicked.connect(self.process_invoices)
         self.invoice_page.scan_button.clicked.connect(self.scan_invoices)
         self.invoice_page.preview_button.clicked.connect(self.preview_invoices)
         self.invoice_page.evaluate_button.clicked.connect(self.evaluate_invoices)
         self.invoice_page.execute_button.clicked.connect(self.execute_invoices)
         self.invoice_page.duplicate_button.clicked.connect(self.show_duplicate_items)
+        self.invoice_page.archive_non_invoice_button.clicked.connect(
+            self.archive_non_invoices
+        )
         self.invoice_page.review_button.clicked.connect(self.review_selected_invoice)
         self.invoice_page.view_pdf_button.clicked.connect(self.view_selected_pdf)
         self.invoice_page.import_button.clicked.connect(self.import_invoice_pdfs)
@@ -155,11 +168,13 @@ class MainWindow(QMainWindow):
                 self.desktop_page.undo_button,
             ]
         return [
+            self.invoice_page.process_button,
             self.invoice_page.scan_button,
             self.invoice_page.preview_button,
             self.invoice_page.evaluate_button,
             self.invoice_page.execute_button,
             self.invoice_page.duplicate_button,
+            self.invoice_page.archive_non_invoice_button,
             self.invoice_page.review_button,
             self.invoice_page.view_pdf_button,
             self.invoice_page.import_button,
@@ -559,7 +574,7 @@ class MainWindow(QMainWindow):
         open_in_file_explorer(path)
 
     def open_invoice_review(self) -> None:
-        path = self._invoice_subdir("待审核附件")
+        path = self._invoice_subdir(self.config.invoice.non_invoice_dir_name)
         path.mkdir(parents=True, exist_ok=True)
         open_in_file_explorer(path)
 
@@ -583,12 +598,12 @@ class MainWindow(QMainWindow):
             )
 
         pending = count(self._invoice_subdir(cfg.pending_dir_name))
-        review = count(self._invoice_subdir("待审核附件"))
+        review = count(self._invoice_subdir(cfg.non_invoice_dir_name))
         archive = count(self._invoice_subdir(cfg.monthly_dir_name))
         reports = count(self._invoice_subdir(cfg.report_dir_name), "*.xlsx")
         raw = count(self._invoice_subdir("邮件原始附件"))
         self.invoice_page.dir_stats_label.setText(
-            f"目录统计: 待处理 {pending} | 待审核 {review} | "
+            f"目录统计: 待处理 {pending} | 非发票附件 {review} | "
             f"已归档 {archive} | 报表 {reports} | 邮件原始附件 {raw}"
         )
 
@@ -781,28 +796,56 @@ class MainWindow(QMainWindow):
             return
 
         preview_items = list(self.invoice_preview_result)
+        candidates = list(self.archive_candidates)
         config = self.config.invoice
 
         def work(cancel_event: threading.Event):
-            return self.invoice_service.execute_preview(preview_items, config, cancel_event)
+            task = self.invoice_service.execute_preview(
+                preview_items, config, cancel_event
+            )
+            # Non-invoice attachments are filed automatically too, so
+            # pending only keeps items that genuinely need a human.
+            non_invoice = (
+                self.invoice_service.archive_non_invoices(
+                    candidates, config, cancel_event
+                )
+                if candidates
+                else {"moved": [], "merged": [], "kept": []}
+            )
+            return task, non_invoice
 
-        def apply(task) -> None:
+        def apply(result) -> None:
+            task, non_invoice = result
             QMessageBox.information(
                 self,
                 "执行完成",
-                f"发票处理完成。移动 {task.summary.get('moved', 0)} 项，跳过 {task.summary.get('skipped', 0)} 项。",
+                f"发票处理完成。归档 {task.summary.get('moved', 0)} 张发票，"
+                f"移出非发票 {len(non_invoice['moved']) + len(non_invoice['merged'])} 份，"
+                f"跳过 {task.summary.get('skipped', 0)} 项。",
             )
             self.app_status_bar.set_message("发票处理执行完成")
             self.invoice_preview_result = None
             self._update_archive_stats()
+            self._update_invoice_dir_stats()
             self._refresh_month_combo()
-            self.scan_invoices()
+            # Re-evaluate so archived rows leave the pending list — the
+            # table should now show only the non-archivable remainder.
+            self.evaluate_invoices()
 
         self._start_task(self.invoice_page, "正在执行发票归档…", work, apply)
 
     # ------------------------------------------------------------------
     # S3.3 archive admission, manual review, monthly ledger
     # ------------------------------------------------------------------
+
+    def process_invoices(self) -> None:
+        """One-click pipeline: evaluate admission then auto-execute.
+
+        Evaluation fills the preview table; execution archives eligible
+        invoices and files away identified non-invoices, leaving only
+        low-confidence items for review.
+        """
+        self.evaluate_invoices(on_done=self.execute_invoices)
 
     def evaluate_invoices(
         self, on_done: Callable[[], None] | None = None
@@ -849,14 +892,15 @@ class MainWindow(QMainWindow):
             )
             target_path = plan.target_path
         reason_texts = [_REASON_TEXT.get(r, r) for r in candidate.reasons]
+        doc_label = _DOC_TYPE_TEXT.get(record.doc_type, record.doc_type)
         if candidate.eligible:
             remark = "可自动归档"
         elif record.doc_type == "e_invoice":
             remark = "需审核: " + "、".join(reason_texts)
         elif record.doc_type in self.invoice_service._OTHER_VOUCHER_TYPES:
-            remark = f"其他票据: {record.doc_type}"
+            remark = f"其他票据: {doc_label}"
         else:
-            remark = f"待识别: {record.doc_type}"
+            remark = f"待识别: {doc_label}"
         return InvoicePreviewItem(
             file_name=record.file_name,
             source_path=candidate.source_path,
@@ -1008,7 +1052,7 @@ class MainWindow(QMainWindow):
             for r in records
             if r.archive_status in ("auto_archived", "manually_archived")
         )
-        review_dir = Path(self.config.invoice.root_dir) / "待审核附件"
+        review_dir = Path(self.config.invoice.root_dir) / self.config.invoice.non_invoice_dir_name
         other_attachments = (
             sum(
                 1
@@ -1040,3 +1084,46 @@ class MainWindow(QMainWindow):
             f"其他票据 {other_voucher} | 待识别 {unidentified} | "
             f"重复 {duplicates} | 其他附件 {other_attachments}"
         )
+
+    def archive_non_invoices(self) -> None:
+        """Move identified non-invoice PDFs into the review dir."""
+        if not self.archive_candidates:
+            QMessageBox.information(
+                self, "提示", "请先点击「评估自动归档」生成候选列表"
+            )
+            return
+        movable = sum(
+            1
+            for c in self.archive_candidates
+            if c.record.doc_type
+            in self.invoice_service._NON_INVOICE_MOVABLE_TYPES
+        )
+        if movable == 0:
+            QMessageBox.information(self, "提示", "没有可归档的非发票附件")
+            return
+        reply = QMessageBox.question(
+            self,
+            "归档非发票",
+            f"将把 {movable} 份已确认非发票附件移入「{self.config.invoice.non_invoice_dir_name}」目录。\n"
+            "无法识别或需 OCR 的文件保留在待处理中。继续？",
+        )
+        if reply != QMessageBox.Yes:
+            return
+        candidates = list(self.archive_candidates)
+        config = self.config.invoice
+
+        def work(cancel_event):
+            return self.invoice_service.archive_non_invoices(
+                candidates, config, cancel_event
+            )
+
+        def apply(result) -> None:
+            self.app_status_bar.set_message(
+                f"非发票归档完成: 移入 {len(result['moved'])} · "
+                f"合并重复 {len(result['merged'])} · "
+                f"保留待处理 {len(result['kept'])}"
+            )
+            self._update_invoice_dir_stats()
+            self.evaluate_invoices()
+
+        self._start_task(self.invoice_page, "正在归档非发票附件…", work, apply)

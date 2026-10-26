@@ -141,6 +141,22 @@ class InvoiceService:
 
         return preview_items
 
+
+    def _sidecar_target(self, dest_pdf: Path, config: InvoiceConfig) -> Path:
+        """Provenance sidecars live in a separate 附件来源 dir, mirroring
+        the destination's parent folder — reimbursement folders stay
+        clean PDFs only."""
+        base = Path(config.root_dir) / config.source_dir_name
+        return base / dest_pdf.parent.name / (dest_pdf.name + ".source.json")
+
+    def _move_sidecar(self, source_pdf: Path, dest_pdf: Path, config: InvoiceConfig) -> None:
+        sidecar = Path(str(source_pdf) + ".source.json")
+        if not sidecar.exists():
+            return
+        target = self._sidecar_target(dest_pdf, config)
+        target.parent.mkdir(parents=True, exist_ok=True)
+        shutil.move(str(sidecar), str(target))
+
     def _attach_mail_source(self, record: InvoiceRecord, path: Path) -> None:
         """Attach mail provenance from a ``.source.json`` sidecar if present."""
         source = load_source_sidecar(path)
@@ -220,11 +236,7 @@ class InvoiceService:
 
             try:
                 shutil.move(str(source), str(target))
-                source_sidecar = Path(str(source) + ".source.json")
-                if source_sidecar.exists():
-                    shutil.move(
-                        str(source_sidecar), str(target) + ".source.json"
-                    )
+                self._move_sidecar(source, target, config)
                 moved_count += 1
                 preview.record.file_path = str(target)
                 task.items.append(
@@ -398,9 +410,7 @@ class InvoiceService:
         target = resolve_conflict_path(Path(plan.target_path))
         target.parent.mkdir(parents=True, exist_ok=True)
         shutil.move(str(source), str(target))
-        source_sidecar = Path(str(source) + ".source.json")
-        if source_sidecar.exists():
-            shutil.move(str(source_sidecar), str(target) + ".source.json")
+        self._move_sidecar(source, target, config)
         record.file_path = str(target)
         record.archived_at = datetime.now().isoformat(timespec="seconds")
         return target
@@ -466,6 +476,9 @@ class InvoiceService:
             self.metadata_store.save_records(records)
             month_key = plan_month(record.invoice_date)
             self.export_monthly_ledger(month_key, config, metadata_records=records)
+        # File identified non-invoices away automatically so pending
+        # only keeps items needing human attention.
+        self.archive_non_invoices(candidates, config, cancel_event)
         return candidates
 
     def export_monthly_ledger(
@@ -530,6 +543,65 @@ class InvoiceService:
         }
 
 
+    _NON_INVOICE_MOVABLE_TYPES = {
+        "travel_voucher", "hotel_folio", "other_pdf",
+    }
+
+    def archive_non_invoices(
+        self,
+        candidates: list[ArchiveCandidate],
+        config: InvoiceConfig,
+        cancel_event: threading.Event | None = None,
+    ) -> dict:
+        """Move identified non-invoice PDFs out of pending into the
+        review/non-invoice attachment directory.
+
+        Only *confidently classified* non-invoices auto-file: voucher,
+        folio and generic other_pdf.  ``needs_ocr`` and ``unknown`` stay
+        pending — low-confidence items always wait for a human.
+        Name conflicts are resolved by content: an identical
+        (same-hash) file already in the review dir means the pending
+        copy is redundant and is removed; a different file with the
+        same name gets a numeric suffix.  ``.source.json`` sidecars
+        move with their PDF.  Returns per-file results.
+        """
+        review_dir = Path(config.root_dir) / config.non_invoice_dir_name
+        review_dir.mkdir(parents=True, exist_ok=True)
+        moved: list[str] = []
+        merged: list[str] = []
+        kept: list[str] = []
+
+        for candidate in candidates:
+            raise_if_cancelled(cancel_event)
+            record = candidate.record
+            if record.doc_type not in self._NON_INVOICE_MOVABLE_TYPES:
+                kept.append(candidate.source_path)
+                continue
+            source = Path(candidate.source_path)
+            target = review_dir / source.name
+            if target.exists():
+                same = (
+                    target.stat().st_size == source.stat().st_size
+                    and compute_file_hash(target, config.hash_algorithm)
+                    == compute_file_hash(source, config.hash_algorithm)
+                )
+                if same:
+                    source.unlink()
+                    Path(str(source) + ".source.json").unlink(missing_ok=True)
+                    merged.append(str(target))
+                    continue
+                for idx in range(1, 1000):
+                    alt = review_dir / f"{source.stem}_{idx}{source.suffix}"
+                    if not alt.exists():
+                        target = alt
+                        break
+            shutil.move(str(source), str(target))
+            self._move_sidecar(source, target, config)
+            moved.append(str(target))
+
+        return {"moved": moved, "merged": merged, "kept": kept}
+
+
 def plan_month(invoice_date: str) -> str:
     """``YYYY-MM-DD`` -> ``YYYYMM`` (empty for missing/invalid dates)."""
     try:
@@ -539,3 +611,4 @@ def plan_month(invoice_date: str) -> str:
     except (AttributeError, IndexError):
         pass
     return ""
+
